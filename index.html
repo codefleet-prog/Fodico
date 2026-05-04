@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fodico Áruház — Irodai kellékek 1990 óta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ANNOUNCEMENT BAR -->
+<div id="ann-bar">
+  <div class="ann-inner">
+    <span>🚚 Ingyenes szállítás 25&thinsp;000 Ft felett</span>
+    <span class="ann-dot">·</span>
+    <span class="ann-md">📞 +36 1 234 5678</span>
+    <span class="ann-dot ann-md">·</span>
+    <span class="ann-lg">🏢 B2B kedvezmények vállalatoknak</span>
+  </div>
+  <button class="ann-x" onclick="document.getElementById('ann-bar').style.display='none'" aria-label="Bezárás">×</button>
+</div>
+
+<!-- HEADER -->
+<header id="hdr">
+  <div class="con hdr-in">
+    <!-- LOGO -->
+    <a class="logo" onclick="navigate('home')" href="#">
+      <div class="logo-ico">F</div>
+      <div class="logo-txt">
+        <div class="logo-name">Fodico</div>
+        <div class="logo-sub">Irodaszer Áruház</div>
+      </div>
+    </a>
+
+    <!-- DESKTOP SEARCH -->
+    <div class="srch-wrap" id="srch-wrap">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="srch-inp" placeholder="Keressen termékek, márkák között…" autocomplete="off">
+      <div id="srch-res" class="srch-res"></div>
+    </div>
+
+    <!-- HEADER ACTIONS -->
+    <div class="hdr-act">
+      <!-- mobile search toggle -->
+      <button class="act-btn act-srch" onclick="toggleMobSearch()" title="Keresés">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <button class="act-btn" onclick="toggleLogin()" title="Bejelentkezés">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+      <button class="act-btn" onclick="navigate('wishlist')" title="Kívánságlista">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span id="wl-cnt" class="badge" style="display:none">0</span>
+      </button>
+      <button class="act-btn" onclick="openCart()" title="Kosár">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span id="cart-cnt" class="badge" style="display:none">0</span>
+      </button>
+      <button class="act-btn" id="ham-btn" onclick="openMobileNav()" title="Menü">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE SEARCH BAR -->
+  <div class="mob-srch" id="mob-srch">
+    <div class="con">
+      <div class="srch-wrap" style="max-width:100%;height:40px">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="mob-srch-inp" placeholder="Keressen termékek között…" autocomplete="off"
+          oninput="handleMobileSearch(this.value)"
+          onkeydown="if(event.key==='Enter'&&this.value.trim()){state.search=this.value.trim();state.catFilter=null;navigate('category');document.getElementById('mob-srch').classList.remove('open')}">
+      </div>
+    </div>
+  </div>
+
+  <!-- MEGA NAV -->
+  <nav class="main-nav" id="main-nav">
+    <div class="con" style="display:flex;align-items:center;gap:0">
+      <div class="nav-item has-mega">
+        <a class="nav-link" href="#">Papír &amp; Nyomtatás ▾</a>
+        <div class="mega-menu">
+          <div class="mega-col">
+            <div class="mega-title">Irodai papír</div>
+            <a onclick="navigateCat('A4 másolópapír')">A4 másolópapír</a>
+            <a onclick="navigateCat('Színes papír')">Színes papír</a>
+            <a onclick="navigateCat('Fotópapír')">Fotópapír</a>
+            <a onclick="navigateCat('Borítékok')">Borítékok</a>
+          </div>
+          <div class="mega-col">
+            <div class="mega-title">Nyomtatószerek</div>
+            <a onclick="navigateCat('Festékpatron')">Festékpatron</a>
+            <a onclick="navigateCat('Toner')">Toner</a>
+            <a onclick="navigateCat('Tintapatron')">Tintapatron</a>
+          </div>
+          <div class="mega-col">
+            <div class="mega-title">Nyomtatók</div>
+            <a onclick="navigateCat('Lézernyomtató')">Lézernyomtató</a>
+            <a onclick="navigateCat('Tintasugaras')">Tintasugaras</a>
+            <a onclick="navigateCat('Multifunkciós')">Multifunkciós</a>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item has-mega">
+        <a class="nav-link" href="#">Írószerek ▾</a>
+        <div class="mega-menu">
+          <div class="mega-col">
+            <div class="mega-title">Tollak</div>
+            <a onclick="navigateCat('Golyóstoll')">Golyóstoll</a>
+            <a onclick="navigateCat('Töltőtoll')">Töltőtoll</a>
+            <a onclick="navigateCat('Filctoll')">Filctoll</a>
+            <a onclick="navigateCat('Rollertoll')">Rollertoll</a>
+          </div>
+          <div class="mega-col">
+            <div class="mega-title">Ceruzák</div>
+            <a onclick="navigateCat('Grafitceruza')">Grafitceruza</a>
+            <a onclick="navigateCat('Színes ceruza')">Színes ceruza</a>
+            <a onclick="navigateCat('Mechanikus ceruza')">Mechanikus ceruza</a>
+          </div>
+          <div class="mega-col">
+            <div class="mega-title">Kiemelők</div>
+            <a onclick="navigateCat('Szövegkiemelő')">Szövegkiemelő</a>
+            <a onclick="navigateCat('Táblamarker')">Táblamarker</a>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item has-mega">
+        <a class="nav-link" href="#">Irattartók ▾</a>
+        <div class="mega-menu">
+          <div class="mega-col">
+            <div class="mega-title">Mappák</div>
+            <a onclick="navigateCat('Gyűrűs mappa')">Gyűrűs mappa</a>
+            <a onclick="navigateCat('Lefűző mappa')">Lefűző mappa</a>
+            <a onclick="navigateCat('Portfolió mappa')">Portfolió mappa</a>
+          </div>
+          <div class="mega-col">
+            <div class="mega-title">Dobozok</div>
+            <a onclick="navigateCat('Archiváló doboz')">Archiváló doboz</a>
+            <a onclick="navigateCat('Irattartó doboz')">Irattartó doboz</a>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item"><a class="nav-link" href="#" onclick="navigateCat('Tárgyalóterem')">Tárgyalóterem</a></div>
+      <div class="nav-item"><a class="nav-link" href="#" onclick="navigateCat('Irodabútor')">Irodabútor</a></div>
+      <div class="nav-item"><a class="nav-link" href="#" onclick="navigate('printer-compat')">🖨 Nyomtatókeresés</a></div>
+      <div class="nav-item" style="margin-left:auto">
+        <a class="nav-link" style="color:#fb923c;font-weight:700" href="#" onclick="navigateCat('Akciók')">🔥 Akciók</a>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<!-- MAIN APP -->
+<main id="app"></main>
+
+<!-- FOOTER -->
+<footer class="ft">
+  <div class="con">
+    <div class="ft-g">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div class="logo-ico" style="width:36px;height:36px;font-size:16px">F</div>
+          <div>
+            <div style="font-weight:700;font-size:16px">Fodico Irodaszer</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5)">Megbízható partner 1990 óta</div>
+          </div>
+        </div>
+        <p style="color:rgba(255,255,255,0.6);font-size:14px;line-height:1.6">Magyarország egyik legmegbízhatóbb irodaszer-szállítója. Több mint 10 000 termék raktárkészletről, gyors kiszállítással.</p>
+        <div style="display:flex;gap:12px;margin-top:16px">
+          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;font-size:22px">f</a>
+          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;font-size:22px">in</a>
+        </div>
+      </div>
+      <div>
+        <div class="ft-h">Kategóriák</div>
+        <a onclick="navigateCat('Papír')">Papír & Nyomtatás</a>
+        <a onclick="navigateCat('Írószerek')">Írószerek</a>
+        <a onclick="navigateCat('Irattartók')">Irattartók & Mappák</a>
+        <a onclick="navigateCat('Tárgyalóterem')">Tárgyalóterem</a>
+        <a onclick="navigateCat('Irodabútor')">Irodabútor</a>
+        <a onclick="navigateCat('Akciók')">Akciós termékek</a>
+      </div>
+      <div>
+        <div class="ft-h">Információk</div>
+        <a href="#">Rólunk</a>
+        <a href="#">Szállítás & Fizetés</a>
+        <a href="#">Visszaküldési feltételek</a>
+        <a href="#">ÁSZF</a>
+        <a href="#">Adatvédelem</a>
+        <a href="#">B2B program</a>
+      </div>
+      <div>
+        <div class="ft-h">Kapcsolat</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:14px;line-height:2">
+          <div>📍 1051 Budapest, Vörösmarty tér 1.</div>
+          <div>📞 +36 1 234 5678</div>
+          <div>✉️ info@fodicoaruhaz.hu</div>
+          <div>🕐 H–P: 8:00–17:00</div>
+        </div>
+        <div style="margin-top:16px">
+          <div class="ft-h">Fizetési módok</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <span style="background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:4px;font-size:12px">Bankkártya</span>
+            <span style="background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:4px;font-size:12px">Átutalás</span>
+            <span style="background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:4px;font-size:12px">SZÉP Kártya</span>
+            <span style="background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:4px;font-size:12px">Utánvét</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ft-bot">
+      <span>© 2024 Fodico Irodaszer Áruház Kft. • Minden jog fenntartva</span>
+      <span>Adószám: 12345678-2-41 • Cégjegyzékszám: 01-09-123456</span>
+    </div>
+  </div>
+</footer>
+
+<!-- CART DRAWER -->
+<div class="ov" id="cart-ov" onclick="closeCart()"></div>
+<div class="cdr" id="cart-dr">
+  <div class="cdr-hdr">
+    <span>Kosár (<span id="cdr-cnt">0</span> termék)</span>
+    <button class="cdr-cls" onclick="closeCart()">×</button>
+  </div>
+  <div class="cdr-body" id="cdr-body"></div>
+  <div class="cdr-ft" id="cdr-ft"></div>
+</div>
+
+<!-- MOBILE NAV -->
+<div class="ov" id="mnav-ov" onclick="closeMobileNav()"></div>
+<div class="mnav" id="mnav">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 20px 16px;border-bottom:1px solid var(--bdr)">
+    <div style="font-weight:700;color:var(--navy)">Menü</div>
+    <button onclick="closeMobileNav()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--txt2)">×</button>
+  </div>
+  <div style="padding:16px 20px">
+    <input type="text" placeholder="Keresés…" style="width:100%;padding:10px 14px;border:1px solid var(--bdr);border-radius:8px;font-size:14px;box-sizing:border-box" oninput="handleMobileSearch(this.value)">
+  </div>
+  <nav style="padding:0 8px">
+    <a class="mnav-item" onclick="navigate('home');closeMobileNav()">🏠 Főoldal</a>
+    <a class="mnav-item" onclick="navigateCat('Papír');closeMobileNav()">📄 Papír & Nyomtatás</a>
+    <a class="mnav-item" onclick="navigateCat('Írószerek');closeMobileNav()">✏️ Írószerek</a>
+    <a class="mnav-item" onclick="navigateCat('Irattartók');closeMobileNav()">📁 Irattartók</a>
+    <a class="mnav-item" onclick="navigateCat('Tárgyalóterem');closeMobileNav()">🎯 Tárgyalóterem</a>
+    <a class="mnav-item" onclick="navigateCat('Irodabútor');closeMobileNav()">🪑 Irodabútor</a>
+    <a class="mnav-item" onclick="navigate('printer-compat');closeMobileNav()">🖨️ Nyomtatókeresés</a>
+    <a class="mnav-item" style="color:#f97316" onclick="navigateCat('Akciók');closeMobileNav()">🔥 Akciók</a>
+    <div style="border-top:1px solid var(--bdr);margin:8px 0"></div>
+    <a class="mnav-item" onclick="navigate('wishlist');closeMobileNav()">❤️ Kívánságlista</a>
+    <a class="mnav-item" onclick="openCart();closeMobileNav()">🛒 Kosár</a>
+    <a class="mnav-item" onclick="toggleLogin();closeMobileNav()">👤 Bejelentkezés</a>
+  </nav>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-ov" id="login-ov" onclick="closeLogin()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button onclick="closeLogin()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--txt2)">×</button>
+    <h2 style="margin:0 0 8px;color:var(--navy);font-size:22px">Bejelentkezés</h2>
+    <p style="color:var(--txt2);font-size:14px;margin:0 0 24px">Üdvözöljük a Fodico Irodaszer Áruházban!</p>
+    <div class="form-g">
+      <label class="form-l">E-mail cím</label>
+      <input type="email" class="form-i" placeholder="pelda@email.hu">
+    </div>
+    <div class="form-g">
+      <label class="form-l">Jelszó</label>
+      <input type="password" class="form-i" placeholder="••••••••">
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:8px" onclick="fakeLogin()">Bejelentkezés</button>
+    <div style="text-align:center;margin-top:16px;font-size:14px;color:var(--txt2)">
+      Még nincs fiókja? <a href="#" style="color:var(--blue);text-decoration:none" onclick="showToast('Regisztráció hamarosan elérhető!')">Regisztráció</a>
+    </div>
+    <div style="border-top:1px solid var(--bdr);margin-top:20px;padding-top:16px">
+      <p style="font-size:13px;color:var(--txt2);text-align:center;margin:0 0 12px">B2B fiók igénylése</p>
+      <button class="btn btn-o" style="width:100%;font-size:14px" onclick="showToast('B2B regisztrációs igény elküldve!')">Vállalati fiók kérése</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
