@@ -1,5 +1,5 @@
 // ============================================================
-// PRODUCT DATABASE
+// PRODUCT DATABASE (demo — élesben a Corwell feedből)
 // ============================================================
 const DB = [
   // PAPER & PRINTING
@@ -73,985 +73,6 @@ const DB = [
   {id:52,name:'Sigel Conceptum A5 heti tervező naptár 2025',brand:"Sigel",cat:"Irodaszerek",sub:"Határidőnapló",price:5490,origPrice:null,sku:"SIG-CONC-25",stock:43,rating:4.7,reviews:38,desc:"Sigel Conceptum prémium A5-ös heti tervező. Finom linátus papír, gumi záró.",specs:{Méret:"A5",Formátum:"Heti",Oldalak:"192 oldal",Zárás:"Gumi szalag"},tags:["naptár","tervező","sigel","határidőnapló","2025"],img:"📅"}
 ];
 
-// ============================================================
-// STATE
-// ============================================================
-const state = {
-  view: 'home',
-  catFilter: null,
-  product: null,
-  cart: [],
-  wishlist: [],
-  search: '',
-  filters: { brands:[], priceMax:null, inStock:false, sub:null },
-  sort: 'pop',
-  checkoutStep: 1,
-  orderData: null,
-  printerBrand: null,
-  printerModel: null,
-  user: null
-};
-
-// ============================================================
-// UTILITIES
-// ============================================================
-const app = () => document.getElementById('app');
-const fmt = n => n.toLocaleString('hu-HU') + ' Ft';
-const stars = r => '★'.repeat(Math.round(r)) + '☆'.repeat(5 - Math.round(r));
-const uid = () => 'FO-' + Date.now().toString(36).toUpperCase().slice(-6);
-
-function showToast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = type;
-  t.style.display = 'block';
-  t.style.opacity = '1';
-  t.style.bottom = '80px';
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => {
-    t.style.bottom = '-80px';
-    t.style.opacity = '0';
-    setTimeout(() => { t.style.display = 'none'; }, 350);
-  }, 2800);
-}
-
-
-function toggleMobSearch() {
-  const bar = document.getElementById('mob-srch');
-  bar.classList.toggle('open');
-  if(bar.classList.contains('open')) {
-    setTimeout(() => document.getElementById('mob-srch-inp')?.focus(), 80);
-  }
-}
-
-function navigate(view, extra) {
-  state.view = view;
-  if(extra) Object.assign(state, extra);
-  render();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  closeMobileNav();
-}
-
-function navigateCat(cat) {
-  state.catFilter = cat;
-  state.filters = { brands:[], priceMax:null, inStock:false, sub:null };
-  state.sort = 'pop';
-  navigate('category');
-}
-
-// ============================================================
-// CART
-// ============================================================
-function addToCart(id, qty=1) {
-  const p = DB.find(x=>x.id===id);
-  if(!p) return;
-  const ex = state.cart.find(x=>x.id===id);
-  if(ex) ex.qty += qty; else state.cart.push({id, qty});
-  updateBadges();
-  renderCart();
-  openCart();
-  showToast(`"${p.name.slice(0,30)}…" hozzáadva a kosárhoz`);
-}
-
-function removeFromCart(id) {
-  state.cart = state.cart.filter(x=>x.id!==id);
-  updateBadges();
-  renderCart();
-}
-
-function updateQty(id, delta) {
-  const item = state.cart.find(x=>x.id===id);
-  if(!item) return;
-  item.qty = Math.max(1, item.qty + delta);
-  updateBadges();
-  renderCart();
-}
-
-function getCartItems() {
-  return state.cart.map(c => ({ ...DB.find(x=>x.id===c.id), qty:c.qty })).filter(Boolean);
-}
-
-function getCartTotal() {
-  return getCartItems().reduce((s,i) => s + i.price * i.qty, 0);
-}
-
-function getCartCount() {
-  return state.cart.reduce((s,c) => s+c.qty, 0);
-}
-
-function updateBadges() {
-  const cc = getCartCount();
-  const wc = state.wishlist.length;
-  const cb = document.getElementById('cart-cnt');
-  const wb = document.getElementById('wl-cnt');
-  if(cb){ cb.textContent = cc; cb.style.display = cc ? 'flex' : 'none'; }
-  if(wb){ wb.textContent = wc; wb.style.display = wc ? 'flex' : 'none'; }
-  const cdr = document.getElementById('cdr-cnt');
-  if(cdr) cdr.textContent = cc;
-}
-
-function renderCart() {
-  const body = document.getElementById('cdr-body');
-  const ft = document.getElementById('cdr-ft');
-  if(!body || !ft) return;
-  const items = getCartItems();
-  if(!items.length) {
-    body.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--txt2)">
-      <div style="font-size:48px;margin-bottom:16px">🛒</div>
-      <p style="font-size:16px;font-weight:600;color:var(--navy)">Üres a kosár</p>
-      <p style="font-size:14px">Böngésszen termékeink között!</p>
-      <button class="btn btn-p" style="margin-top:20px" onclick="closeCart();navigate('home')">Vásárlás</button>
-    </div>`;
-    ft.innerHTML = '';
-    return;
-  }
-  body.innerHTML = items.map(i => `
-    <div class="cdr-item">
-      <div class="cdr-img">${i.img||'📦'}</div>
-      <div class="cdr-info">
-        <div class="cdr-name">${i.name}</div>
-        <div class="cdr-pr">${fmt(i.price)}</div>
-        <div class="cdr-qty">
-          <button class="qty-btn" onclick="updateQty(${i.id},-1)">−</button>
-          <span style="min-width:24px;text-align:center;font-weight:600">${i.qty}</span>
-          <button class="qty-btn" onclick="updateQty(${i.id},1)">+</button>
-          <button onclick="removeFromCart(${i.id})" style="margin-left:8px;background:none;border:none;color:var(--txt2);cursor:pointer;font-size:18px">🗑</button>
-        </div>
-      </div>
-      <div style="font-weight:700;color:var(--navy);white-space:nowrap">${fmt(i.price*i.qty)}</div>
-    </div>`).join('');
-
-  const total = getCartTotal();
-  const shipping = total >= 25000 ? 0 : 1290;
-  ft.innerHTML = `
-    <div style="border-top:1px solid var(--bdr);padding-top:16px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;color:var(--txt2)">
-        <span>Részösszeg</span><span>${fmt(total)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:14px;color:var(--txt2)">
-        <span>Szállítás</span><span>${shipping === 0 ? '<span style="color:var(--teal)">Ingyenes</span>' : fmt(shipping)}</span>
-      </div>
-      ${shipping > 0 ? `<div style="background:#fef3c7;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:12px">Még <strong>${fmt(25000 - total)}</strong> vásárlás szükséges az ingyenes szállításhoz!</div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;color:var(--navy);margin-bottom:16px">
-        <span>Összesen</span><span>${fmt(total + shipping)}</span>
-      </div>
-      <button class="btn btn-p" style="width:100%" onclick="closeCart();navigate('checkout')">Megrendelés →</button>
-      <button class="btn btn-o" style="width:100%;margin-top:8px" onclick="closeCart()">Vásárlás folytatása</button>
-    </div>`;
-  updateBadges();
-}
-
-function openCart() {
-  document.getElementById('cart-dr').classList.add('open');
-  document.getElementById('cart-ov').classList.add('active');
-  renderCart();
-}
-function closeCart() {
-  document.getElementById('cart-dr').classList.remove('open');
-  document.getElementById('cart-ov').classList.remove('active');
-}
-
-// ============================================================
-// WISHLIST
-// ============================================================
-function toggleWish(id) {
-  const idx = state.wishlist.indexOf(id);
-  if(idx >= 0) { state.wishlist.splice(idx,1); showToast('Eltávolítva a kívánságlistáról','info'); }
-  else { state.wishlist.push(id); showToast('Hozzáadva a kívánságlistához ❤️'); }
-  updateBadges();
-  document.querySelectorAll(`.pc-wish[data-id="${id}"]`).forEach(btn => {
-    btn.classList.toggle('active', state.wishlist.includes(id));
-  });
-}
-
-// ============================================================
-// SEARCH
-// ============================================================
-function initSearch() {
-  const inp = document.getElementById('srch-inp');
-  const res = document.getElementById('srch-res');
-  if(!inp || !res) return;
-  inp.addEventListener('input', function() {
-    const q = this.value.trim().toLowerCase();
-    if(q.length < 2) { res.style.display='none'; return; }
-    const hits = DB.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.brand.toLowerCase().includes(q) ||
-      (p.tags && p.tags.some(t=>t.includes(q)))
-    ).slice(0, 6);
-    if(!hits.length) { res.style.display='none'; return; }
-    res.innerHTML = hits.map(p => `
-      <div class="srch-item" onclick="viewProduct(${p.id});document.getElementById('srch-inp').value='';document.getElementById('srch-res').style.display='none'">
-        <span style="font-size:20px;margin-right:10px">${p.img||'📦'}</span>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--navy)">${p.name.slice(0,50)}</div>
-          <div style="font-size:12px;color:var(--txt2)">${p.brand} • ${fmt(p.price)}</div>
-        </div>
-      </div>`).join('') +
-      `<div class="srch-item" style="color:var(--blue);font-size:13px;justify-content:center" onclick="state.catFilter=null;state.search='${q}';navigate('category')">
-        Összes találat megtekintése →
-      </div>`;
-    res.style.display = 'block';
-  });
-  document.addEventListener('click', e => {
-    if(!e.target.closest('#srch-wrap')) res.style.display = 'none';
-  });
-  inp.addEventListener('keydown', e => {
-    if(e.key === 'Enter') {
-      state.catFilter = null;
-      state.search = inp.value.trim();
-      res.style.display = 'none';
-      inp.value = '';
-      navigate('category');
-    }
-  });
-}
-
-// ============================================================
-// MOBILE NAV
-// ============================================================
-function openMobileNav() {
-  document.getElementById('mnav').classList.add('open');
-  document.getElementById('mnav-ov').classList.add('active');
-}
-function closeMobileNav() {
-  document.getElementById('mnav').classList.remove('open');
-  document.getElementById('mnav-ov').classList.remove('active');
-}
-function handleMobileSearch(v) {
-  if(v.length > 1) { state.search = v; state.catFilter = null; navigate('category'); closeMobileNav(); }
-}
-
-// ============================================================
-// LOGIN MODAL
-// ============================================================
-function toggleLogin() {
-  const ov = document.getElementById('login-ov');
-  ov.style.display = ov.style.display === 'flex' ? 'none' : 'flex';
-}
-function closeLogin() { document.getElementById('login-ov').style.display='none'; }
-function fakeLogin() {
-  const email = document.querySelector('#login-ov input[type=email]')?.value;
-  if(!email || !email.includes('@')) { showToast('Kérem adjon meg érvényes e-mail címet!','error'); return; }
-  state.user = { email };
-  closeLogin();
-  showToast('Sikeres bejelentkezés! Üdvözöljük!');
-}
-
-// ============================================================
-// RENDER HOME
-// ============================================================
-function renderHome() {
-  const featured = DB.filter(p=>p.reviews>100).sort((a,b)=>b.reviews-a.reviews).slice(0,8);
-  const sale = DB.filter(p=>p.origPrice).slice(0,4);
-  const heroFeat = featured[0] || DB[0];
-  const heroMini1 = DB.find(p=>p.cat==='Írószerek') || DB[1];
-  const heroMini2 = DB.find(p=>p.cat==='Nyomtatószerek') || DB[2];
-  const cats = [
-    {name:'Papír & Nyomtatás', icon:'📄', sub:'Papír, patronok, tonerök', cat:'Papír'},
-    {name:'Írószerek', icon:'✏️', sub:'Tollak, ceruzák, kiemelők', cat:'Írószerek'},
-    {name:'Irattartók', icon:'📁', sub:'Mappák, dobozok, tálcák', cat:'Irattartók'},
-    {name:'Tárgyalóterem', icon:'🎯', sub:'Fehértáblák, flipchart', cat:'Tárgyalóterem'},
-    {name:'Irodabútor', icon:'🪑', sub:'Székek, polcok, tartók', cat:'Irodabútor'},
-    {name:'Irodaszerek', icon:'📎', sub:'Kellékek, szalagok, tűzők', cat:'Irodaszerek'},
-  ];
-  app().innerHTML = `
-    <!-- HERO -->
-    <section class="hero">
-      <div class="hero-bg">
-        <div class="hero-blob hero-blob-1"></div>
-        <div class="hero-blob hero-blob-2"></div>
-        <div class="hero-blob hero-blob-3"></div>
-      </div>
-      <div class="con" style="width:100%">
-        <div class="hero-inner">
-          <div>
-            <div class="hero-badge">🏆 Megbízható partner 1990 óta</div>
-            <h1 class="hero-h1">Az irodájának<br>minden, amire<br><em>szüksége van.</em></h1>
-            <p class="hero-sub">10&thinsp;000+ irodaszer termék raktárkészletről. Ingyenes szállítás 25&thinsp;000 Ft felett. B2B kedvezmények vállalkozásoknak.</p>
-            <div class="hero-cta">
-              <button class="btn hero-btn-main" onclick="navigateCat('Papír')">Böngésszen most →</button>
-              <button class="btn hero-btn-sec" onclick="navigate('printer-compat')">🖨️ Nyomtatókeresés</button>
-            </div>
-            <div class="hero-stats">
-              <div class="hero-stat"><span class="hero-stat-n">10k+</span><span class="hero-stat-l">Termék</span></div>
-              <div class="hero-stat-sep"></div>
-              <div class="hero-stat"><span class="hero-stat-n">35+</span><span class="hero-stat-l">Év tapasztalat</span></div>
-              <div class="hero-stat-sep"></div>
-              <div class="hero-stat"><span class="hero-stat-n">24h</span><span class="hero-stat-l">Kiszállítás</span></div>
-              <div class="hero-stat-sep"></div>
-              <div class="hero-stat"><span class="hero-stat-n">5k+</span><span class="hero-stat-l">Ügyfél</span></div>
-            </div>
-          </div>
-          <div class="hero-r">
-            <div class="hero-r-main" onclick="navigate('product',${heroFeat.id})">
-              <div class="hero-r-badge">⭐ Legjobb értékelés</div>
-              <span class="hero-r-ico">${heroFeat.icon}</span>
-              <div class="hero-r-nm">${heroFeat.name}</div>
-              <div class="hero-r-sub">${heroFeat.brand}</div>
-              <div class="hero-r-pr">${heroFeat.price.toLocaleString('hu-HU')} Ft</div>
-              <button class="hero-r-btn" onclick="event.stopPropagation();addToCart(${heroFeat.id})">Kosárba teszem</button>
-            </div>
-            <div class="hero-mini-row">
-              <div class="hero-mini" onclick="navigateCat('Írószerek')">
-                <span class="hero-mini-ico">${heroMini1.icon}</span>
-                <div><div class="hero-mini-nm">${heroMini1.name.substring(0,18)}</div><div class="hero-mini-pr">${heroMini1.price.toLocaleString('hu-HU')} Ft</div></div>
-              </div>
-              <div class="hero-mini" onclick="navigateCat('Nyomtatószerek')">
-                <span class="hero-mini-ico">${heroMini2.icon}</span>
-                <div><div class="hero-mini-nm">${heroMini2.name.substring(0,18)}</div><div class="hero-mini-pr">${heroMini2.price.toLocaleString('hu-HU')} Ft</div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CATEGORIES -->
-    <section style="padding:48px 0;background:var(--bg)">
-      <div class="con">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-          <h2 style="font-size:22px;font-weight:700;color:var(--navy);margin:0">Kategóriák</h2>
-        </div>
-        <div class="cg">
-          ${cats.map(c=>`
-            <div class="cat-card" onclick="navigateCat('${c.cat}')">
-              <div class="cat-ico">${c.icon}</div>
-              <div class="cat-name">${c.name}</div>
-              <div class="cat-sub">${c.sub}</div>
-            </div>`).join('')}
-        </div>
-      </div>
-    </section>
-
-    <!-- FEATURED PRODUCTS -->
-    <section style="padding:48px 0">
-      <div class="con">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-          <h2 style="font-size:22px;font-weight:700;color:var(--navy);margin:0">Népszerű termékek</h2>
-          <a onclick="navigateCat(null)" style="color:var(--blue);font-size:14px;cursor:pointer;text-decoration:none">Összes →</a>
-        </div>
-        <div class="pg4">${featured.map(p=>productCard(p)).join('')}</div>
-      </div>
-    </section>
-
-    <!-- PROMO BANNER -->
-    <section style="padding:32px 0;background:linear-gradient(135deg,#0d9488,#0f766e)">
-      <div class="con" style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap">
-        <div>
-          <h2 style="color:#fff;font-size:24px;font-weight:800;margin:0 0 8px">B2B vállalati kedvezmények</h2>
-          <p style="color:rgba(255,255,255,0.85);margin:0;font-size:15px">5–30% kedvezmény vállalkozásoknak • Dedikált kapcsolattartó • Havi számla</p>
-        </div>
-        <button class="btn" style="background:#fff;color:#0d9488;font-weight:700;padding:14px 28px;white-space:nowrap" onclick="showToast('B2B ajánlatkérés elküldve!')">Ajánlatot kérek</button>
-      </div>
-    </section>
-
-    <!-- SALE -->
-    <section style="padding:48px 0;background:var(--bg)">
-      <div class="con">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-          <h2 style="font-size:22px;font-weight:700;color:var(--navy);margin:0">🔥 Akciók</h2>
-          <a onclick="navigateCat('Akciók')" style="color:var(--blue);font-size:14px;cursor:pointer;text-decoration:none">Összes akció →</a>
-        </div>
-        <div class="pg4">${sale.map(p=>productCard(p)).join('')}</div>
-      </div>
-    </section>
-
-    <!-- USP STRIP -->
-    <section style="padding:32px 0;border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr)">
-      <div class="con">
-        <div class="tg">
-          ${[
-            ['🚚','Gyors szállítás','1-2 munkanapon belül a megrendelés után'],
-            ['🎁','Ingyenes szállítás','25 000 Ft feletti rendelésekre'],
-            ['↩️','Könnyű visszaküldés','30 napon belül, kérdések nélkül'],
-            ['🏢','B2B program','Vállalati kedvezmények és havi elszámolás'],
-          ].map(([ico,t,s])=>`
-            <div style="display:flex;gap:16px;align-items:flex-start">
-              <div style="font-size:32px;flex-shrink:0">${ico}</div>
-              <div><div style="font-weight:700;font-size:15px;color:var(--navy);margin-bottom:4px">${t}</div><div style="font-size:13px;color:var(--txt2)">${s}</div></div>
-            </div>`).join('')}
-        </div>
-      </div>
-    </section>`;
-}
-
-// ============================================================
-// PRODUCT CARD
-// ============================================================
-function productCard(p) {
-  const isWish = state.wishlist.includes(p.id);
-  const disc = p.origPrice ? Math.round((1 - p.price/p.origPrice)*100) : 0;
-  return `<div class="pc">
-    <div class="pc-img" onclick="viewProduct(${p.id})">${p.img||'📦'}
-      ${disc ? `<div class="pc-bdg">-${disc}%</div>` : ''}
-      <button class="pc-wish${isWish?' active':''}" data-id="${p.id}" onclick="event.stopPropagation();toggleWish(${p.id})">♥</button>
-    </div>
-    <div class="pc-body" onclick="viewProduct(${p.id})">
-      <div class="pc-br">${p.brand}</div>
-      <div class="pc-nm">${p.name}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <span style="color:#f59e0b;font-size:12px">${stars(p.rating)}</span>
-        <span style="font-size:12px;color:var(--txt2)">(${p.reviews})</span>
-      </div>
-      <div class="pc-pr">
-        <span class="pc-p">${fmt(p.price)}</span>
-        ${p.origPrice ? `<span style="font-size:12px;color:var(--txt2);text-decoration:line-through">${fmt(p.origPrice)}</span>` : ''}
-      </div>
-    </div>
-    <div class="pc-foot">
-      <div class="pc-op" onclick="viewProduct(${p.id})">Részletek</div>
-      <button class="pc-cart" onclick="addToCart(${p.id})">+ Kosár</button>
-    </div>
-  </div>`;
-}
-
-function viewProduct(id) {
-  state.product = DB.find(x=>x.id===id);
-  navigate('product');
-}
-
-// ============================================================
-// RENDER CATEGORY
-// ============================================================
-function renderCategory() {
-  let products = [...DB];
-  const title = state.catFilter || (state.search ? `Keresés: "${state.search}"` : 'Összes termék');
-
-  // Apply filters
-  if(state.catFilter) products = products.filter(p => p.cat === state.catFilter || p.sub === state.catFilter || p.tags?.includes(state.catFilter.toLowerCase()));
-  if(state.search) products = products.filter(p =>
-    p.name.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.brand.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.tags?.some(t => t.includes(state.search.toLowerCase()))
-  );
-  if(state.filters.brands.length) products = products.filter(p => state.filters.brands.includes(p.brand));
-  if(state.filters.priceMax) products = products.filter(p => p.price <= state.filters.priceMax);
-  if(state.filters.inStock) products = products.filter(p => p.stock > 0);
-  if(state.filters.sub) products = products.filter(p => p.sub === state.filters.sub);
-
-  // Sort
-  if(state.sort === 'price-asc') products.sort((a,b) => a.price - b.price);
-  else if(state.sort === 'price-desc') products.sort((a,b) => b.price - a.price);
-  else if(state.sort === 'rating') products.sort((a,b) => b.rating - a.rating);
-  else products.sort((a,b) => b.reviews - a.reviews);
-
-  // Available brands
-  const allBrands = [...new Set(DB.filter(p => !state.catFilter || p.cat === state.catFilter || p.sub === state.catFilter).map(p=>p.brand))].sort();
-  const allSubs = [...new Set(DB.filter(p => !state.catFilter || p.cat === state.catFilter).map(p=>p.sub))].filter(Boolean).sort();
-
-  app().innerHTML = `
-    <div class="con" style="padding-top:24px;padding-bottom:48px">
-      <div style="font-size:13px;color:var(--txt2);margin-bottom:16px">
-        <span onclick="navigate('home')" style="cursor:pointer;color:var(--blue)">Főoldal</span>
-        ${state.catFilter ? ` › <span>${state.catFilter}</span>` : ''}
-        ${state.search ? ` › Keresés` : ''}
-      </div>
-      <div class="cpl">
-        <!-- FILTERS -->
-        <aside class="fp" id="filter-panel">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <span style="font-weight:700;font-size:15px;color:var(--navy)">Szűrők</span>
-            <button onclick="clearFilters()" style="background:none;border:none;color:var(--blue);font-size:13px;cursor:pointer">Törlés</button>
-          </div>
-
-          <div class="fg">
-            <div class="fg-t" onclick="this.parentElement.classList.toggle('open')">Raktáron ▾</div>
-            <div class="fg-body">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
-                <input type="checkbox" ${state.filters.inStock?'checked':''} onchange="state.filters.inStock=this.checked;renderCategory()">
-                Csak raktáron lévő termékek
-              </label>
-            </div>
-          </div>
-
-          ${allSubs.length > 1 ? `<div class="fg open">
-            <div class="fg-t" onclick="this.parentElement.classList.toggle('open')">Alkategória ▾</div>
-            <div class="fg-body">
-              <label class="fo"><input type="radio" name="sub" ${!state.filters.sub?'checked':''} onchange="state.filters.sub=null;renderCategory()"> Összes</label>
-              ${allSubs.map(s=>`<label class="fo"><input type="radio" name="sub" ${state.filters.sub===s?'checked':''} onchange="state.filters.sub='${s}';renderCategory()"> ${s}</label>`).join('')}
-            </div>
-          </div>` : ''}
-
-          <div class="fg open">
-            <div class="fg-t" onclick="this.parentElement.classList.toggle('open')">Márka ▾</div>
-            <div class="fg-body">
-              ${allBrands.slice(0,12).map(b=>`
-                <label class="fo">
-                  <input type="checkbox" ${state.filters.brands.includes(b)?'checked':''} onchange="toggleBrandFilter('${b}')">
-                  ${b} <span style="color:var(--txt2);font-size:12px">(${DB.filter(p=>p.brand===b).length})</span>
-                </label>`).join('')}
-            </div>
-          </div>
-
-          <div class="fg open">
-            <div class="fg-t" onclick="this.parentElement.classList.toggle('open')">Ár ▾</div>
-            <div class="fg-body">
-              ${[5000,10000,20000,50000].map(v=>`
-                <label class="fo">
-                  <input type="radio" name="price" ${state.filters.priceMax===v?'checked':''} onchange="state.filters.priceMax=${v};renderCategory()">
-                  Max ${fmt(v)}
-                </label>`).join('')}
-              <label class="fo">
-                <input type="radio" name="price" ${!state.filters.priceMax?'checked':''} onchange="state.filters.priceMax=null;renderCategory()">
-                Nincs korlát
-              </label>
-            </div>
-          </div>
-        </aside>
-
-        <!-- PRODUCT GRID -->
-        <div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
-            <div>
-              <h1 style="font-size:22px;font-weight:700;color:var(--navy);margin:0 0 4px">${title}</h1>
-              <span style="font-size:13px;color:var(--txt2)">${products.length} termék</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <button class="btn btn-o" style="font-size:13px;padding:8px 14px;display:none" id="filter-mob-btn" onclick="document.getElementById('filter-panel').style.display='block'">⚙ Szűrők</button>
-              <select style="padding:8px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:14px;background:#fff" onchange="state.sort=this.value;renderCategory()">
-                <option value="pop" ${state.sort==='pop'?'selected':''}>Népszerűség</option>
-                <option value="price-asc" ${state.sort==='price-asc'?'selected':''}>Ár: növekvő</option>
-                <option value="price-desc" ${state.sort==='price-desc'?'selected':''}>Ár: csökkenő</option>
-                <option value="rating" ${state.sort==='rating'?'selected':''}>Értékelés</option>
-              </select>
-            </div>
-          </div>
-          ${products.length === 0
-            ? `<div style="text-align:center;padding:64px 24px;color:var(--txt2)">
-                <div style="font-size:48px;margin-bottom:16px">🔍</div>
-                <p style="font-size:16px;font-weight:600;color:var(--navy)">Nem találtunk termékeket</p>
-                <p style="font-size:14px">Próbáljon más szűrőkkel keresni</p>
-                <button class="btn btn-o" style="margin-top:16px" onclick="clearFilters()">Szűrők törlése</button>
-              </div>`
-            : `<div class="ppl">${products.map(p=>productCard(p)).join('')}</div>`}
-        </div>
-      </div>
-    </div>`;
-}
-
-function toggleBrandFilter(brand) {
-  const idx = state.filters.brands.indexOf(brand);
-  if(idx >= 0) state.filters.brands.splice(idx,1); else state.filters.brands.push(brand);
-  renderCategory();
-}
-function clearFilters() {
-  state.filters = { brands:[], priceMax:null, inStock:false, sub:null };
-  renderCategory();
-}
-
-// ============================================================
-// RENDER PRODUCT PAGE
-// ============================================================
-function renderProduct() {
-  const p = state.product;
-  if(!p) { navigate('home'); return; }
-  const isWish = state.wishlist.includes(p.id);
-  const related = DB.filter(x => x.cat === p.cat && x.id !== p.id).slice(0,4);
-  const disc = p.origPrice ? Math.round((1 - p.price/p.origPrice)*100) : 0;
-
-  app().innerHTML = `
-    <div class="con" style="padding-top:24px;padding-bottom:48px">
-      <div style="font-size:13px;color:var(--txt2);margin-bottom:24px">
-        <span onclick="navigate('home')" style="cursor:pointer;color:var(--blue)">Főoldal</span>
-        › <span onclick="navigateCat('${p.cat}')" style="cursor:pointer;color:var(--blue)">${p.cat}</span>
-        › <span>${p.name.slice(0,40)}</span>
-      </div>
-      <div class="ppage">
-        <div class="pgal">
-          <div class="pgal-main" id="pgal-main">${p.img||'📦'}</div>
-          <div class="pgal-row">
-            ${[p.img||'📦','📦','🏷️','📋'].map((i,idx)=>`<div class="pgal-thumb${idx===0?' active':''}" onclick="document.getElementById('pgal-main').textContent='${i}';this.parentElement.querySelectorAll('.pgal-thumb').forEach(t=>t.classList.remove('active'));this.classList.add('active')">${i}</div>`).join('')}
-          </div>
-        </div>
-        <div class="pinfo">
-          <div style="font-size:13px;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${p.brand}</div>
-          <h1 style="font-size:clamp(18px,2.5vw,26px);font-weight:700;color:var(--navy);margin:0 0 12px;line-height:1.3">${p.name}</h1>
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <span style="color:#f59e0b;font-size:16px">${stars(p.rating)}</span>
-            <span style="font-size:14px;color:var(--txt2)">${p.rating} csillag (${p.reviews} értékelés)</span>
-          </div>
-          <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px">
-            <span style="font-size:32px;font-weight:800;color:var(--navy)">${fmt(p.price)}</span>
-            ${p.origPrice ? `<span style="font-size:18px;color:var(--txt2);text-decoration:line-through">${fmt(p.origPrice)}</span><span style="background:#fee2e2;color:#dc2626;padding:4px 8px;border-radius:6px;font-size:13px;font-weight:700">-${disc}%</span>` : ''}
-          </div>
-          <div style="font-size:13px;color:var(--txt2);margin-bottom:20px">SKU: ${p.sku} • ÁFA: 27%</div>
-          <div style="padding:12px 16px;border-radius:8px;margin-bottom:20px;font-size:14px;font-weight:600;${p.stock > 20 ? 'background:#dcfce7;color:#16a34a' : p.stock > 0 ? 'background:#fef9c3;color:#ca8a04' : 'background:#fee2e2;color:#dc2626'}">
-            ${p.stock > 20 ? `✅ Raktáron (${p.stock} db)` : p.stock > 0 ? `⚠️ Korlátozott készlet (${p.stock} db)` : '❌ Jelenleg nem elérhető'}
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-            <div style="display:flex;align-items:center;border:2px solid var(--bdr);border-radius:8px;overflow:hidden">
-              <button onclick="changePageQty(-1)" style="width:40px;height:40px;background:none;border:none;font-size:20px;cursor:pointer">−</button>
-              <span id="page-qty" style="min-width:40px;text-align:center;font-weight:700;font-size:16px">1</span>
-              <button onclick="changePageQty(1)" style="width:40px;height:40px;background:none;border:none;font-size:20px;cursor:pointer">+</button>
-            </div>
-            <button class="btn btn-p" style="flex:1;padding:12px" onclick="addToCart(${p.id}, getPageQty())" ${p.stock === 0 ? 'disabled style="opacity:.5"':''}>
-              🛒 Kosárba
-            </button>
-            <button class="pc-wish${isWish?' active':''}" data-id="${p.id}" onclick="toggleWish(${p.id})" style="width:44px;height:44px;border-radius:8px;border:2px solid var(--bdr);background:#fff;font-size:20px;cursor:pointer">♥</button>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">
-            ${[['🚚','Szállítás','1-2 munkanap'],['↩️','Visszaküldés','30 napon belül'],['🏢','Személyes','Átvehető raktárból'],['💳','Fizetés','Kártya, utalás, SZÉP']].map(([i,t,s])=>`
-              <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--bg);border-radius:8px">
-                <span style="font-size:18px">${i}</span>
-                <div><div style="font-size:12px;font-weight:600;color:var(--navy)">${t}</div><div style="font-size:11px;color:var(--txt2)">${s}</div></div>
-              </div>`).join('')}
-          </div>
-        </div>
-      </div>
-
-      <!-- TABS -->
-      <div style="margin-top:40px;border-bottom:2px solid var(--bdr)">
-        <div style="display:flex;gap:0">
-          ${['Leírás','Specifikációk','Értékelések'].map((tab,i)=>`
-            <button onclick="switchPTab(${i})" id="ptab-${i}" class="tab-btn${i===0?' active':''}" style="padding:12px 24px;border:none;background:none;font-weight:600;font-size:15px;cursor:pointer;border-bottom:3px solid ${i===0?'var(--blue)':'transparent'};color:${i===0?'var(--blue)':'var(--txt2)'}">
-              ${tab}
-            </button>`).join('')}
-        </div>
-      </div>
-      <div id="ptab-content" style="padding:24px 0">
-        <div id="ptab-panel-0">${renderProductDesc(p)}</div>
-        <div id="ptab-panel-1" style="display:none">${renderProductSpecs(p)}</div>
-        <div id="ptab-panel-2" style="display:none">${renderProductReviews(p)}</div>
-      </div>
-
-      <!-- RELATED -->
-      ${related.length ? `
-      <div style="margin-top:48px">
-        <h2 style="font-size:20px;font-weight:700;color:var(--navy);margin:0 0 20px">Kapcsolódó termékek</h2>
-        <div class="pg4">${related.map(r=>productCard(r)).join('')}</div>
-      </div>` : ''}
-    </div>`;
-}
-
-let pageQty = 1;
-function getPageQty() { return pageQty; }
-function changePageQty(d) {
-  pageQty = Math.max(1, pageQty + d);
-  const el = document.getElementById('page-qty');
-  if(el) el.textContent = pageQty;
-}
-
-function switchPTab(idx) {
-  [0,1,2].forEach(i => {
-    const panel = document.getElementById(`ptab-panel-${i}`);
-    const btn = document.getElementById(`ptab-${i}`);
-    if(panel) panel.style.display = i===idx ? 'block' : 'none';
-    if(btn) {
-      btn.style.borderBottomColor = i===idx ? 'var(--blue)' : 'transparent';
-      btn.style.color = i===idx ? 'var(--blue)' : 'var(--txt2)';
-      btn.classList.toggle('active', i===idx);
-    }
-  });
-}
-
-function renderProductDesc(p) {
-  return `<p style="font-size:15px;line-height:1.7;color:var(--txt)">${p.desc}</p>
-  ${p.compat ? `<div style="margin-top:16px"><h4 style="font-weight:700;color:var(--navy);margin:0 0 8px">Kompatibilis nyomtatókkal:</h4>
-  <ul style="padding-left:20px;font-size:14px;color:var(--txt);">${p.compat.map(c=>`<li>${c}</li>`).join('')}</ul></div>` : ''}`;
-}
-
-function renderProductSpecs(p) {
-  if(!p.specs) return '<p style="color:var(--txt2)">Nincs elérhető specifikáció.</p>';
-  return `<table style="width:100%;border-collapse:collapse;font-size:14px">
-    ${Object.entries(p.specs).map(([k,v],i)=>`
-      <tr style="background:${i%2===0?'var(--bg)':'#fff'}">
-        <td style="padding:10px 16px;font-weight:600;color:var(--navy);width:35%">${k}</td>
-        <td style="padding:10px 16px;color:var(--txt)">${v}</td>
-      </tr>`).join('')}
-  </table>`;
-}
-
-function renderProductReviews(p) {
-  const mockReviews = [
-    {name:'Nagy István',rating:5,date:'2024-03-15',text:'Kiváló termék, pontosan olyan, mint leírták. Gyors szállítás!'},
-    {name:'Kovács Mária',rating:4,date:'2024-02-28',text:'Nagyon elégedett vagyok a termékkel. Már másodszor rendelek.'},
-    {name:'Tóth Péter',rating:5,date:'2024-02-10',text:'Remek minőség, megbízható webshop. Ajánlom mindenkinek.'},
-  ];
-  return `
-    <div style="display:flex;align-items:center;gap:32px;margin-bottom:32px;padding:24px;background:var(--bg);border-radius:12px">
-      <div style="text-align:center">
-        <div style="font-size:48px;font-weight:800;color:var(--navy)">${p.rating}</div>
-        <div style="color:#f59e0b;font-size:20px">${stars(p.rating)}</div>
-        <div style="font-size:13px;color:var(--txt2)">${p.reviews} értékelés</div>
-      </div>
-      <div style="flex:1">
-        ${[5,4,3,2,1].map(n=>{
-          const pct = n===5?70:n===4?20:n===3?6:n===2?2:2;
-          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:12px;width:12px;text-align:right">${n}</span>
-            <span style="color:#f59e0b;font-size:12px">★</span>
-            <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden">
-              <div style="width:${pct}%;height:100%;background:#f59e0b;border-radius:4px"></div>
-            </div>
-            <span style="font-size:12px;color:var(--txt2);width:30px">${pct}%</span>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>
-    ${mockReviews.map(r=>`
-      <div style="border-bottom:1px solid var(--bdr);padding:20px 0">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${r.name[0]}</div>
-            <div><div style="font-weight:600;font-size:14px;color:var(--navy)">${r.name}</div>
-            <div style="font-size:12px;color:var(--txt2)">${r.date}</div></div>
-          </div>
-          <span style="color:#f59e0b">${stars(r.rating)}</span>
-        </div>
-        <p style="font-size:14px;color:var(--txt);margin:0">${r.text}</p>
-      </div>`).join('')}`;
-}
-
-// ============================================================
-// RENDER WISHLIST
-// ============================================================
-function renderWishlist() {
-  const items = DB.filter(p => state.wishlist.includes(p.id));
-  app().innerHTML = `
-    <div class="con" style="padding-top:32px;padding-bottom:48px">
-      <h1 style="font-size:24px;font-weight:700;color:var(--navy);margin:0 0 24px">❤️ Kívánságlista</h1>
-      ${items.length === 0
-        ? `<div style="text-align:center;padding:64px 24px;color:var(--txt2)">
-            <div style="font-size:48px;margin-bottom:16px">💝</div>
-            <p style="font-size:16px;font-weight:600;color:var(--navy)">Üres a kívánságlista</p>
-            <p style="font-size:14px">Adjon termékeket a szívecske ikonra kattintva!</p>
-            <button class="btn btn-p" style="margin-top:20px" onclick="navigate('home')">Böngésszen</button>
-          </div>`
-        : `<div class="pg4">${items.map(p => productCard(p)).join('')}</div>`}
-    </div>`;
-}
-
-// ============================================================
-// RENDER CHECKOUT
-// ============================================================
-function renderCheckout() {
-  if(state.cart.length === 0) { navigate('home'); showToast('A kosár üres!','error'); return; }
-  const items = getCartItems();
-  const total = getCartTotal();
-  const shipping = total >= 25000 ? 0 : 1290;
-  const step = state.checkoutStep;
-
-  const steps = ['Adatok','Szállítás','Fizetés'];
-  app().innerHTML = `
-    <div class="con" style="padding-top:32px;padding-bottom:48px">
-      <h1 style="font-size:24px;font-weight:700;color:var(--navy);margin:0 0 28px">Megrendelés</h1>
-      <div class="chk-prog">
-        ${steps.map((s,i)=>`
-          <div class="chk-step${i+1<=step?' done':''}${i+1===step?' active':''}">
-            <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;background:${i+1<=step?'var(--blue)':'var(--bdr)'};color:${i+1<=step?'#fff':'var(--txt2)'}">
-              ${i+1 < step ? '✓' : i+1}
-            </div>
-            <span style="font-size:13px;font-weight:${i+1===step?'700':'400'};color:${i+1<=step?'var(--navy)':'var(--txt2)'}">${s}</span>
-          </div>
-          ${i<2?'<div class="chk-sep"></div>':''}`).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start">
-        <div>
-          ${step===1 ? renderCheckoutStep1() : step===2 ? renderCheckoutStep2() : renderCheckoutStep3()}
-        </div>
-        <div class="chk-card">
-          <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin:0 0 16px">Rendelés összegzése</h3>
-          ${items.map(i=>`
-            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;align-items:flex-start;gap:8px">
-              <span style="color:var(--txt);flex:1">${i.name.slice(0,40)} <span style="color:var(--txt2)">×${i.qty}</span></span>
-              <span style="font-weight:600;white-space:nowrap">${fmt(i.price*i.qty)}</span>
-            </div>`).join('')}
-          <div style="border-top:1px solid var(--bdr);margin:12px 0;padding-top:12px">
-            <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;color:var(--txt2)"><span>Részösszeg</span><span>${fmt(total)}</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:16px;color:var(--txt2)"><span>Szállítás</span><span>${shipping===0?'<span style="color:var(--teal)">Ingyenes</span>':fmt(shipping)}</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--navy)"><span>Összesen</span><span>${fmt(total+shipping)}</span></div>
-          </div>
-          <div style="font-size:12px;color:var(--txt2);margin-top:12px">Az ár tartalmazza a 27% ÁFÁ-t</div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderCheckoutStep1() {
-  return `<div class="chk-card">
-    <h2 style="font-size:18px;font-weight:700;color:var(--navy);margin:0 0 20px">Személyes adatok</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="form-g">
-        <label class="form-l">Vezetéknév *</label>
-        <input class="form-i" id="chk-lname" type="text" placeholder="Kovács" value="${state.orderData?.lname||''}">
-      </div>
-      <div class="form-g">
-        <label class="form-l">Keresztnév *</label>
-        <input class="form-i" id="chk-fname" type="text" placeholder="János" value="${state.orderData?.fname||''}">
-      </div>
-    </div>
-    <div class="form-g">
-      <label class="form-l">E-mail cím *</label>
-      <input class="form-i" id="chk-email" type="email" placeholder="pelda@email.hu" value="${state.orderData?.email||''}">
-    </div>
-    <div class="form-g">
-      <label class="form-l">Telefonszám *</label>
-      <input class="form-i" id="chk-phone" type="tel" placeholder="+36 30 123 4567" value="${state.orderData?.phone||''}">
-    </div>
-    <div style="background:#eff6ff;border-radius:8px;padding:14px;margin:16px 0;font-size:13px;color:#1e40af">
-      <strong>B2B rendelés?</strong> Adja meg cégének adatait a számlázáshoz:
-    </div>
-    <div class="form-g">
-      <label class="form-l">Cégnév (opcionális)</label>
-      <input class="form-i" id="chk-company" type="text" placeholder="Minta Kft." value="${state.orderData?.company||''}">
-    </div>
-    <div class="form-g">
-      <label class="form-l">Adószám (opcionális)</label>
-      <input class="form-i" id="chk-vat" type="text" placeholder="12345678-2-41" value="${state.orderData?.vat||''}">
-    </div>
-    <button class="btn btn-p" style="width:100%;margin-top:8px" onclick="goCheckoutStep2()">Tovább: Szállítás →</button>
-    <button class="btn btn-o" style="width:100%;margin-top:8px" onclick="closeCart();navigate('home')">← Vissza a vásárláshoz</button>
-  </div>`;
-}
-
-function renderCheckoutStep2() {
-  return `<div class="chk-card">
-    <h2 style="font-size:18px;font-weight:700;color:var(--navy);margin:0 0 20px">Szállítási adatok</h2>
-    <div class="form-g">
-      <label class="form-l">Szállítási cím *</label>
-      <input class="form-i" id="chk-addr" type="text" placeholder="Budapest, Váci út 1." value="${state.orderData?.addr||''}">
-    </div>
-    <div style="display:grid;grid-template-columns:120px 1fr;gap:16px">
-      <div class="form-g">
-        <label class="form-l">Irányítószám *</label>
-        <input class="form-i" id="chk-zip" type="text" placeholder="1052" value="${state.orderData?.zip||''}">
-      </div>
-      <div class="form-g">
-        <label class="form-l">Város *</label>
-        <input class="form-i" id="chk-city" type="text" placeholder="Budapest" value="${state.orderData?.city||''}">
-      </div>
-    </div>
-    <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:20px 0 12px">Szállítási mód</h3>
-    <div id="del-opts">
-      ${[
-        {id:'gls',name:'GLS futárszolgálat',sub:'1-2 munkanap',price:1290,icon:'🚚'},
-        {id:'dpd',name:'DPD házhozszállítás',sub:'1-2 munkanap',price:1390,icon:'📦'},
-        {id:'post',name:'Magyar Posta',sub:'2-3 munkanap',price:990,icon:'📮'},
-        {id:'pickup',name:'Személyes átvétel',sub:'Budapest, Vörösmarty tér 1.',price:0,icon:'🏢'},
-      ].map(d=>`
-        <label class="del-opt${state.orderData?.delivery===d.id?' selected':''}">
-          <input type="radio" name="delivery" value="${d.id}" ${state.orderData?.delivery===d.id?'checked':''} onchange="state.orderData=state.orderData||{};state.orderData.delivery='${d.id}';document.querySelectorAll('.del-opt').forEach(el=>el.classList.remove('selected'));this.closest('.del-opt').classList.add('selected')">
-          <span style="font-size:24px">${d.icon}</span>
-          <div style="flex:1"><div style="font-weight:600;font-size:14px">${d.name}</div><div style="font-size:12px;color:var(--txt2)">${d.sub}</div></div>
-          <span style="font-weight:700;color:var(--navy)">${d.price===0?'Ingyenes':fmt(d.price)}</span>
-        </label>`).join('')}
-    </div>
-    <button class="btn btn-p" style="width:100%;margin-top:20px" onclick="goCheckoutStep3()">Tovább: Fizetés →</button>
-    <button class="btn btn-o" style="width:100%;margin-top:8px" onclick="state.checkoutStep=1;renderCheckout()">← Vissza</button>
-  </div>`;
-}
-
-function renderCheckoutStep3() {
-  return `<div class="chk-card">
-    <h2 style="font-size:18px;font-weight:700;color:var(--navy);margin:0 0 20px">Fizetési mód</h2>
-    <div id="pay-opts">
-      ${[
-        {id:'card',name:'Bankkártya (OTP SimplePay)',sub:'Biztonságos online fizetés',icon:'💳'},
-        {id:'transfer',name:'Banki átutalás',sub:'Fizetési határidő: 5 munkanap',icon:'🏦'},
-        {id:'szep',name:'SZÉP Kártya',sub:'OTP, K&H, MKB elfogadott',icon:'🎴'},
-        {id:'cod',name:'Utánvét',sub:'Fizetés átvételkor (+390 Ft díj)',icon:'📬'},
-      ].map(d=>`
-        <label class="pay-opt${state.orderData?.payment===d.id?' selected':''}">
-          <input type="radio" name="payment" value="${d.id}" ${state.orderData?.payment===d.id?'checked':''} onchange="state.orderData=state.orderData||{};state.orderData.payment='${d.id}';document.querySelectorAll('.pay-opt').forEach(el=>el.classList.remove('selected'));this.closest('.pay-opt').classList.add('selected')">
-          <span style="font-size:24px">${d.icon}</span>
-          <div><div style="font-weight:600;font-size:14px">${d.name}</div><div style="font-size:12px;color:var(--txt2)">${d.sub}</div></div>
-        </label>`).join('')}
-    </div>
-    <div style="background:var(--bg);border-radius:8px;padding:16px;margin:20px 0">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--txt)">
-        <input type="checkbox" id="chk-tos" style="margin-top:2px;flex-shrink:0">
-        <span>Elfogadom az <a href="#" style="color:var(--blue)">Általános Szerződési Feltételeket</a> és az <a href="#" style="color:var(--blue)">Adatvédelmi Nyilatkozatot</a>.</span>
-      </label>
-    </div>
-    <button class="btn btn-p" style="width:100%;font-size:16px;padding:14px" onclick="placeOrder()">🛒 Megrendelés elküldése</button>
-    <button class="btn btn-o" style="width:100%;margin-top:8px" onclick="state.checkoutStep=2;renderCheckout()">← Vissza</button>
-  </div>`;
-}
-
-function goCheckoutStep2() {
-  const lname = document.getElementById('chk-lname')?.value.trim();
-  const fname = document.getElementById('chk-fname')?.value.trim();
-  const email = document.getElementById('chk-email')?.value.trim();
-  const phone = document.getElementById('chk-phone')?.value.trim();
-  if(!lname || !fname) { showToast('Kérem adja meg a nevét!','error'); return; }
-  if(!email || !email.includes('@')) { showToast('Érvénytelen e-mail cím!','error'); return; }
-  if(!phone) { showToast('Kérem adja meg a telefonszámát!','error'); return; }
-  state.orderData = { ...state.orderData, lname, fname, email, phone,
-    company: document.getElementById('chk-company')?.value,
-    vat: document.getElementById('chk-vat')?.value };
-  state.checkoutStep = 2;
-  renderCheckout();
-}
-
-function goCheckoutStep3() {
-  const addr = document.getElementById('chk-addr')?.value.trim();
-  const zip = document.getElementById('chk-zip')?.value.trim();
-  const city = document.getElementById('chk-city')?.value.trim();
-  if(!addr || !zip || !city) { showToast('Kérem töltse ki a szállítási adatokat!','error'); return; }
-  if(!state.orderData?.delivery) { showToast('Válasszon szállítási módot!','error'); return; }
-  state.orderData = { ...state.orderData, addr, zip, city };
-  state.checkoutStep = 3;
-  renderCheckout();
-}
-
-function placeOrder() {
-  const tos = document.getElementById('chk-tos')?.checked;
-  if(!tos) { showToast('Kérem fogadja el az ÁSZF-et!','error'); return; }
-  if(!state.orderData?.payment) { showToast('Válasszon fizetési módot!','error'); return; }
-  state.orderData.orderId = uid();
-  state.orderData.items = getCartItems();
-  state.orderData.total = getCartTotal();
-  state.cart = [];
-  updateBadges();
-  navigate('confirmation');
-}
-
-// ============================================================
-// RENDER CONFIRMATION
-// ============================================================
-function renderConfirmation() {
-  const d = state.orderData;
-  if(!d) { navigate('home'); return; }
-  app().innerHTML = `
-    <div class="con" style="padding-top:48px;padding-bottom:64px;max-width:700px;margin:0 auto">
-      <div class="oc">
-        <div class="oc-ico">✅</div>
-        <h1 style="font-size:28px;font-weight:800;color:var(--navy);margin:0 0 8px">Köszönjük rendelését!</h1>
-        <p style="font-size:16px;color:var(--txt2);margin:0 0 24px">Visszaigazolást küldtünk az <strong>${d.email}</strong> e-mail címre.</p>
-        <div class="oc-num">Rendelésszám: <strong>${d.orderId}</strong></div>
-        <div class="oc-inf">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Megrendelő</div>
-            <div style="font-size:14px;color:var(--txt);line-height:2">${d.lname} ${d.fname}<br>${d.email}<br>${d.phone}${d.company?`<br>${d.company}`:''}</div>
-          </div>
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Szállítás</div>
-            <div style="font-size:14px;color:var(--txt);line-height:2">${d.zip} ${d.city}<br>${d.addr}<br><span style="color:var(--teal);font-weight:600">Várható szállítás: 1-2 munkanap</span></div>
-          </div>
-        </div>
-        <div style="border-top:1px solid var(--bdr);padding-top:20px;margin-top:8px">
-          <div style="font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Rendelt termékek</div>
-          ${(d.items||[]).map(i=>`
-            <div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-bottom:1px solid var(--bdr)">
-              <span>${i.name.slice(0,50)} <span style="color:var(--txt2)">×${i.qty}</span></span>
-              <span style="font-weight:600">${fmt(i.price*i.qty)}</span>
-            </div>`).join('')}
-          <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--navy);padding-top:12px">
-            <span>Összesen</span><span>${fmt(d.total)}</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
-          <button class="btn btn-p" onclick="navigate('home')">Folytatja a vásárlást</button>
-          <button class="btn btn-o" onclick="showToast('PDF számla letöltve!')">📄 Számla letöltése</button>
-        </div>
-      </div>
-    </div>`;
-}
-
-// ============================================================
-// PRINTER COMPAT
-// ============================================================
 const printerData = {
   'HP': {
     'HP DeskJet 2620': ['HP 304 fekete tintapatron (N9K06AE)', 'HP 304 háromszínű tintapatron (N9K05AE)'],
@@ -1080,89 +101,750 @@ const printerData = {
   }
 };
 
-function renderPrinterCompat() {
-  const brands = Object.keys(printerData);
-  const models = state.printerBrand ? Object.keys(printerData[state.printerBrand]||{}) : [];
-  const results = state.printerBrand && state.printerModel
-    ? printerData[state.printerBrand][state.printerModel] || []
-    : [];
+// ============================================================
+// FODICO — app
+// A termékadatok (DB) demo adatok; élesben a Corwell feedből jönnek.
+// Az értékelés-mezőket (rating/reviews) szándékosan nem jelenítjük meg.
+// ============================================================
 
+// --- Demo beállítások (HELYŐRZŐK — a Fodicóval egyeztetendő) ---
+const FREE_SHIP = 25000;           // ingyenes szállítás határa (helyőrző)
+const SHIP_OPTS = [
+  {id:'courier', name:'Házhozszállítás futárral', sub:'Szállítási partner: egyeztetés alatt', price:1490},
+  {id:'locker',  name:'Csomagpont / automata',     sub:'Szállítási partner: egyeztetés alatt', price:990},
+];
+const PAY_OPTS = [
+  {id:'card', name:'Bankkártya — SimplePay', sub:'Biztonságos online fizetés a SimplePay oldalán'},
+  {id:'cod',  name:'Utánvét', sub:'Fizetés átvételkor'},
+];
+
+// --- Icons (simple line glyphs) ---
+const I = {
+  paper:'<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20V3.5Z"/><path d="M14 3.5V8h4"/><path d="M9.8 12h5.4M9.8 15h5.4M9.8 18h3"/>',
+  printer:'<path d="M7 8V3.8h10V8"/><rect x="3.5" y="8" width="17" height="8.5" rx="2.2"/><path d="M7 14h10v6.2H7z"/><circle cx="17" cy="11" r=".6" fill="currentColor"/>',
+  pen:'<path d="M15.5 4.5l4 4L9 19l-5 1 1-5L15.5 4.5Z"/><path d="M13.5 6.5l4 4"/>',
+  folder:'<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7.5Z"/><path d="M3.5 10.5h17"/>',
+  clip:'<path d="M8 12.5l6.3-6.3a3 3 0 0 1 4.2 4.2l-7.6 7.6a4.5 4.5 0 0 1-6.4-6.4L12 4.1"/>',
+  board:'<rect x="3.5" y="4" width="17" height="11.5" rx="1.6"/><path d="M12 15.5V20M8.5 20.5l3.5-5 3.5 5"/><path d="M7.5 11.5l3-3 2.5 2 3.5-3.5"/>',
+  chair:'<path d="M8 3.8h8a1.5 1.5 0 0 1 1.5 1.6L17 12H7l-.5-6.6A1.5 1.5 0 0 1 8 3.8Z"/><path d="M5.5 12h13v3h-13z"/><path d="M12 15v4.5M8 20.5h8"/>',
+  tag:'<path d="M3.8 12.6V4.3a.5.5 0 0 1 .5-.5h8.3l7.7 7.7a1.5 1.5 0 0 1 0 2.1l-6.2 6.2a1.5 1.5 0 0 1-2.1 0L3.8 12.6Z"/><circle cx="8.3" cy="8.3" r="1.6"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>',
+  bag:'<path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  heart:'<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chev:'<path d="m6 9 6 6 6-6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
+  card:'<rect x="3" y="5.5" width="18" height="13" rx="2.4"/><path d="M3 10h18M7 15h4"/>',
+  receipt:'<path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4v-17Z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/>',
+  truck:'<path d="M3.5 6.5h10v9h-10z"/><path d="M13.5 9.5h4l3 3v3h-7"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  filter:'<path d="M4 6h16M7 12h10M10 18h4"/>',
+  home:'<path d="M4 11l8-6.5 8 6.5V20h-5.5v-5h-5v5H4v-9Z"/>',
+};
+const ic = (n, s=24, w=1.8) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]||''}</svg>`;
+
+// --- Categories ---
+const CATS = [
+  {key:'Papír',          name:'Papír',          sub:'Másoló- és fotópapír', ic:'paper'},
+  {key:'Nyomtatószerek', name:'Nyomtatókellék', sub:'Patronok, tonerek',    ic:'printer'},
+  {key:'Írószerek',      name:'Írószerek',      sub:'Tollak, ceruzák, filcek', ic:'pen'},
+  {key:'Irattartók',     name:'Irattartók',     sub:'Mappák, dobozok',      ic:'folder'},
+  {key:'Irodaszerek',    name:'Irodaszerek',    sub:'Ragasztó, tűző, notesz', ic:'clip'},
+  {key:'Tárgyalóterem',  name:'Tárgyaló',       sub:'Táblák, flipchart',     ic:'board'},
+  {key:'Irodabútor',     name:'Irodabútor',     sub:'Székek, tartók',        ic:'chair'},
+  {key:'Akciók',         name:'Akciók',         sub:'Most olcsóbban',        ic:'tag', sale:true},
+];
+const catOf = p => CATS.find(c=>c.key===p.cat) || CATS[4];
+const inCat = (p, key) => key==='Akciók' ? (p.cat==='Akciók' || !!p.origPrice) : (p.cat===key || p.sub===key);
+
+// --- State ---
+const state = {
+  view:'home', catFilter:null, product:null, cart:[], wishlist:[], search:'',
+  filters:{ brands:[], priceMax:null, inStock:false, sub:null }, sort:'pop',
+  checkoutStep:1, orderData:null, printerBrand:null, printerModel:null,
+};
+
+// --- Utils ---
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const app = () => $('#app');
+const fmt = n => n.toLocaleString('hu-HU').replace(/ /g,' ') + ' Ft';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => 'FO-' + Date.now().toString(36).toUpperCase().slice(-6);
+const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
+const thumb = (p, cls='') => `<div class="th ${cls}">${ic(catOf(p).ic, 24, 1.5)}</div>`;
+
+function toast(msg, opts={}) {
+  const t = $('#toast');
+  t.className = opts.err ? 'err' : '';
+  t.innerHTML = `<span>${esc(msg)}</span>${opts.action ? `<button type="button">${esc(opts.action)}</button>` : ''}`;
+  if (opts.action) t.querySelector('button').onclick = () => { t.classList.remove('on'); opts.onAction && opts.onAction(); };
+  requestAnimationFrame(() => t.classList.add('on'));
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), opts.ms || 3000);
+}
+
+// ============================================================
+// NAV
+// ============================================================
+function navigate(view, extra) {
+  state.view = view;
+  if (extra) Object.assign(state, extra);
+  closeAll();
+  render(true);
+  window.scrollTo(0, 0);
+}
+function navigateCat(cat) {
+  state.catFilter = cat; state.search = '';
+  state.filters = { brands:[], priceMax:null, inStock:false, sub:null };
+  state.sort = 'pop';
+  navigate('category');
+}
+function doSearch(q) {
+  q = (q||'').trim(); if (!q) return;
+  state.catFilter = null; state.search = q;
+  state.filters = { brands:[], priceMax:null, inStock:false, sub:null };
+  navigate('category');
+}
+function viewProduct(id) { state.product = DB.find(x=>x.id===id); navigate('product'); }
+
+function renderNav() {
+  $('#cnav').innerHTML = CATS.map(c => `<a href="#" class="${c.sale?'sale':''}${state.view==='category'&&state.catFilter===c.key?' on':''}" onclick="event.preventDefault();navigateCat('${c.key}')">${c.sale?'<span class="hlmark">Akciók</span>':c.name}</a>`).join('')
+    + `<a href="#" class="${state.view==='printer'?'on':''}" onclick="event.preventDefault();navigate('printer')">${ic('printer',17,2)} Patronkereső</a>`;
+  $('#ft-cats').innerHTML = CATS.map(c => `<a href="#" onclick="event.preventDefault();navigateCat('${c.key}')">${c.name}</a>`).join('');
+  $('#mnav-list').innerHTML =
+    `<a href="#" onclick="event.preventDefault();navigate('home')"><span class="cat-ic">${ic('home',20,1.8)}</span>Főoldal</a>` +
+    CATS.map(c => `<a href="#" onclick="event.preventDefault();navigateCat('${c.key}')"><span class="cat-ic">${ic(c.ic,20,1.8)}</span>${c.name}</a>`).join('') +
+    `<hr><a href="#" onclick="event.preventDefault();navigate('printer')"><span class="cat-ic">${ic('printer',20,1.8)}</span>Patronkereső</a>` +
+    `<a href="#" onclick="event.preventDefault();navigate('wishlist')"><span class="cat-ic">${ic('heart',20,1.8)}</span>Kívánságlista</a>`;
+}
+
+// ============================================================
+// CART
+// ============================================================
+const cartItems = () => state.cart.map(c => ({...DB.find(x=>x.id===c.id), qty:c.qty})).filter(x=>x.id);
+const cartTotal = () => cartItems().reduce((s,i)=>s+i.price*i.qty, 0);
+const cartCount = () => state.cart.reduce((s,c)=>s+c.qty, 0);
+
+function addToCart(id, qty=1, srcEl) {
+  const p = DB.find(x=>x.id===id); if (!p) return;
+  const ex = state.cart.find(x=>x.id===id);
+  if (ex) ex.qty += qty; else state.cart.push({id, qty});
+  const done = () => {
+    updateBadges(true); renderCart();
+    toast(`Kosárba került: ${p.name}`, {action:'Kosár megnyitása', onAction:openCart});
+  };
+  if (srcEl && !RM) flyToCart(srcEl, catOf(p).ic, done); else done();
+}
+function setQty(id, d) {
+  const it = state.cart.find(x=>x.id===id); if (!it) return;
+  it.qty = Math.max(1, it.qty + d); updateBadges(); renderCart();
+}
+function removeFromCart(id) { state.cart = state.cart.filter(x=>x.id!==id); updateBadges(); renderCart(); }
+
+function updateBadges(bump) {
+  const cc = cartCount(), wc = state.wishlist.length;
+  const cb = $('#cart-cnt'), wb = $('#wl-cnt');
+  cb.textContent = cc; cb.style.display = cc ? 'flex' : 'none';
+  wb.textContent = wc; wb.style.display = wc ? 'flex' : 'none';
+  $('#cart-sum').textContent = cc ? fmt(cartTotal()) : 'Kosár';
+  if (bump) {
+    [cb, $('#cart-btn')].forEach(el => { el.classList.remove('pop','bump'); void el.offsetWidth; });
+    cb.classList.add('pop'); $('#cart-btn').classList.add('bump');
+  }
+}
+
+function flyToCart(srcEl, icon, done) {
+  const a = srcEl.getBoundingClientRect(), target = $('#cart-btn').getBoundingClientRect();
+  const x0 = a.left + a.width/2 - 27, y0 = a.top + a.height/2 - 27;
+  const x1 = target.left + 24 - 27, y1 = target.top + target.height/2 - 27;
+  const cx = x0 + (x1 - x0) * .18, cy = Math.max(12, Math.min(y0, y1) - 60);
+  const el = document.createElement('div');
+  el.className = 'fly';
+  el.innerHTML = `<div class="fly-in">${ic(icon, 26, 2)}</div>`;
+  document.body.appendChild(el);
+  const frames = [];
+  for (let i=0;i<=16;i++){
+    const t=i/16, u=1-t;
+    const x=u*u*x0+2*u*t*cx+t*t*x1, y=u*u*y0+2*u*t*cy+t*t*y1;
+    const s = i===0 ? .4 : 1 - t*.62;
+    frames.push({transform:`translate(${x}px,${y}px) scale(${s})`, opacity: t>.92 ? 0 : 1});
+  }
+  const anim = el.animate(frames, {duration:780, easing:'cubic-bezier(.45,0,.2,1)', fill:'forwards'});
+  anim.onfinish = () => { el.remove(); done(); };
+}
+
+function renderCart() {
+  const items = cartItems(), total = cartTotal();
+  $('#dr-cnt').textContent = items.length ? `${cartCount()} db` : '';
+  if (!items.length) {
+    $('#dr-ship').innerHTML = '';
+    $('#dr-b').innerHTML = `<div class="dr-empty"><div class="fly-in">${ic('bag',34,1.8)}</div><h4>Üres a kosár</h4><p>Nézz körül a kategóriák között!</p><button class="btn btn-jelly" onclick="closeCart();navigate('home')">Vásárlás indítása</button></div>`;
+    $('#dr-f').innerHTML = ''; return;
+  }
+  const left = Math.max(0, FREE_SHIP - total), pct = Math.min(100, total / FREE_SHIP * 100);
+  $('#dr-ship').innerHTML = `<div class="ship"><p>${left ? `Még <b>${fmt(left)}</b> és ingyenes a szállítás` : '<b>Ingyenes szállítás</b> — megvan!'}</p><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  $('#dr-b').innerHTML = items.map((i,k) => `
+    <div class="ci" style="animation-delay:${k*40}ms">
+      ${thumb(i)}
+      <div>
+        <div class="ci-n">${esc(i.name)}</div>
+        <div class="qty"><button onclick="setQty(${i.id},-1)" aria-label="Kevesebb">−</button><output>${i.qty}</output><button onclick="setQty(${i.id},1)" aria-label="Több">+</button></div>
+      </div>
+      <div class="ci-r"><b>${fmt(i.price*i.qty)}</b><button class="ci-del" onclick="removeFromCart(${i.id})">Törlés</button></div>
+    </div>`).join('');
+  $('#dr-f').innerHTML = `
+    <div class="row"><span>Részösszeg</span><span>${fmt(total)}</span></div>
+    <div class="row"><span>Szállítás</span><span>${left ? 'a pénztárban' : 'ingyenes'}</span></div>
+    <div class="row tot"><span>Összesen</span><span>${fmt(total)}</span></div>
+    <button class="btn btn-jelly btn-wide" onclick="closeCart();state.checkoutStep=1;navigate('checkout')">Tovább a pénztárhoz ${ic('arrow',18,2.4)}</button>
+    <button class="btn btn-ghost btn-wide" style="margin-top:6px" onclick="closeCart()">Vásárlás folytatása</button>`;
+}
+
+// --- Drawers ---
+function openLayer(id) {
+  $('#toast').classList.remove('on');
+  const el = $(id); el.removeAttribute('inert'); el.classList.add('on'); $('#scrim').classList.add('on');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => { const f = el.querySelector('button, input'); f && f.focus({preventScroll:true}); }, 420);
+}
+function closeLayer(id) { const el = $(id); if (!el) return; el.classList.remove('on'); el.setAttribute('inert',''); }
+function openCart() { renderCart(); openLayer('#drawer'); }
+function closeCart() { closeLayer('#drawer'); unlock(); }
+function openSearch() {
+  closeLayer('#drawer'); closeLayer('#mnav');
+  openLayer('#spanel'); $('#srch-btn').setAttribute('aria-expanded','true');
+  setTimeout(() => $('#q-h').focus({preventScroll:true}), 60);
+}
+function closeSearch() { closeLayer('#spanel'); $('#srch-btn').setAttribute('aria-expanded','false'); unlock(); }
+document.addEventListener('keydown', e => {
+  if (e.key==='/' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+});
+function openMenu() { openLayer('#mnav'); }
+function closeMenu() { closeLayer('#mnav'); unlock(); }
+function openFilters() { const f=$('#fpan'); if(!f) return; f.classList.add('on'); $('#scrim').classList.add('on'); document.body.style.overflow='hidden'; }
+function unlock() { if (!$$('.drawer.on,.mnav.on,.fpan.on,.spanel.on').length) { $('#scrim').classList.remove('on'); document.body.style.overflow=''; } }
+function closeAll() { closeLayer('#drawer'); closeLayer('#mnav'); closeLayer('#spanel'); const f=$('#fpan'); f && f.classList.remove('on'); $('#scrim').classList.remove('on'); document.body.style.overflow=''; }
+document.addEventListener('keydown', e => { if (e.key==='Escape') { closeAll(); closeSels(); } });
+
+// --- Wishlist ---
+function toggleWish(id, btn) {
+  const i = state.wishlist.indexOf(id);
+  if (i>=0) state.wishlist.splice(i,1); else state.wishlist.push(id);
+  const on = state.wishlist.includes(id);
+  $$(`.wish[data-id="${id}"]`).forEach(b => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); if (on) { b.classList.remove('beat'); void b.offsetWidth; b.classList.add('beat'); } });
+  updateBadges();
+  if (state.view==='wishlist') render();
+}
+
+// ============================================================
+// SEARCH (header, hero, mobile)
+// ============================================================
+function hits(q) {
+  q = q.toLowerCase();
+  return DB.filter(p => p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.tags||[]).some(t=>t.includes(q)));
+}
+function hl(s, q) {
+  const i = s.toLowerCase().indexOf(q.toLowerCase());
+  return i<0 ? esc(s) : esc(s.slice(0,i)) + '<mark>' + esc(s.slice(i,i+q.length)) + '</mark>' + esc(s.slice(i+q.length));
+}
+function bindSearch(inp, box) {
+  if (!inp) return;
+  let act = -1;
+  const close = () => { if (box) box.classList.remove('open'); act = -1; };
+  inp.addEventListener('input', () => {
+    if (!box) return;
+    const q = inp.value.trim();
+    if (q.length < 2) return close();
+    const h = hits(q);
+    box.innerHTML = (h.length ? h.slice(0,5).map(p => `
+      <div class="sres-it" role="option" data-id="${p.id}">${thumb(p)}<div><b>${hl(p.name,q)}</b><span>${esc(p.brand)} · ${fmt(p.price)}</span></div></div>`).join('')
+      : `<div class="sres-it" style="cursor:default"><div><b>Nincs találat erre: „${esc(q)}”</b><span>Próbáld márkával vagy cikkszámmal.</span></div></div>`)
+      + (h.length ? `<a class="sres-all" href="#" data-all="1">Mind a ${h.length} találat ${ic('arrow',15,2.4)}</a>` : '');
+    box.classList.add('open'); act = -1;
+  });
+  box && box.addEventListener('mousedown', e => {
+    const it = e.target.closest('[data-id]'), all = e.target.closest('[data-all]');
+    if (it) { e.preventDefault(); inp.value=''; close(); viewProduct(+it.dataset.id); }
+    if (all) { e.preventDefault(); const q = inp.value; inp.value=''; close(); doSearch(q); }
+  });
+  inp.addEventListener('keydown', e => {
+    const items = box ? $$('.sres-it[data-id]', box) : [];
+    if (e.key==='ArrowDown' || e.key==='ArrowUp') {
+      if (!items.length) return; e.preventDefault();
+      act = (act + (e.key==='ArrowDown'?1:-1) + items.length) % items.length;
+      items.forEach((x,i)=>x.classList.toggle('act', i===act));
+    } else if (e.key==='Enter') {
+      e.preventDefault();
+      if (act>=0 && items[act]) { const id=+items[act].dataset.id; inp.value=''; close(); viewProduct(id); }
+      else { const q=inp.value; inp.value=''; close(); doSearch(q); }
+    } else if (e.key==='Escape') close();
+  });
+  inp.addEventListener('blur', () => setTimeout(close, 120));
+}
+
+// ============================================================
+// CUSTOM SELECT (no native control)
+// ============================================================
+const SEL = {};
+function sel(name, opts, value, ph, extra='') {
+  const cur = opts.find(o=>o.v===value);
+  return `<div class="sel ${extra}" data-sel="${name}">
+    <button type="button" class="sel-btn" aria-haspopup="listbox" aria-expanded="false">${cur ? esc(cur.t) : `<span class="ph-t">${esc(ph)}</span>`}${ic('chev',18,2.4)}</button>
+    <ul class="sel-list" role="listbox" tabindex="-1">${opts.map(o=>`<li role="option" data-v="${esc(o.v)}" aria-selected="${o.v===value}">${esc(o.t)}</li>`).join('')}</ul>
+  </div>`;
+}
+function closeSels(except) { $$('.sel.open').forEach(s => { if (s!==except) { s.classList.remove('open'); s.querySelector('.sel-btn').setAttribute('aria-expanded','false'); } }); }
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.sel-btn');
+  if (btn) {
+    const s = btn.parentElement, open = !s.classList.contains('open');
+    closeSels(s); s.classList.toggle('open', open); btn.setAttribute('aria-expanded', open);
+    if (open) { const li = s.querySelector('[aria-selected="true"]') || s.querySelector('li'); $$('li',s).forEach(x=>x.classList.remove('kf')); li && li.classList.add('kf'); }
+    return;
+  }
+  const li = e.target.closest('.sel-list li');
+  if (li) { const s = li.closest('.sel'); closeSels(); SEL[s.dataset.sel] && SEL[s.dataset.sel](li.dataset.v); return; }
+  closeSels();
+});
+document.addEventListener('keydown', e => {
+  const s = $('.sel.open'); if (!s) return;
+  const lis = $$('li', s); let k = lis.findIndex(x=>x.classList.contains('kf'));
+  if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); k=(k+(e.key==='ArrowDown'?1:-1)+lis.length)%lis.length; lis.forEach((x,i)=>x.classList.toggle('kf',i===k)); lis[k].scrollIntoView({block:'nearest'}); }
+  if (e.key==='Enter' && k>=0) { e.preventDefault(); closeSels(); SEL[s.dataset.sel] && SEL[s.dataset.sel](lis[k].dataset.v); }
+});
+
+const chk = (type, name, checked, label, onchange, n='') =>
+  `<label class="chk ${type==='radio'?'rd':''}"><input type="${type}" name="${name}" ${checked?'checked':''} onchange="${onchange}"><span class="bx">${type==='checkbox'?'<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>':''}</span><span class="lb">${label}</span>${n!==''?`<span class="n">${n}</span>`:''}</label>`;
+
+// ============================================================
+// PRODUCT CARD
+// ============================================================
+function productCard(p, i=0) {
+  const wish = state.wishlist.includes(p.id);
+  const disc = p.origPrice ? Math.round((1 - p.price/p.origPrice)*100) : 0;
+  return `<article class="pc" data-rv style="--i:${i%8}">
+    <div class="pc-img" onclick="viewProduct(${p.id})">
+      ${thumb(p)}
+      ${disc ? `<span class="pc-bdg">−${disc}%</span>` : ''}
+      <button class="wish${wish?' on':''}" data-id="${p.id}" aria-pressed="${wish}" aria-label="Kívánságlista" onclick="event.stopPropagation();toggleWish(${p.id},this)">${ic('heart',18,2)}</button>
+    </div>
+    <div class="pc-b" onclick="viewProduct(${p.id})">
+      <div class="pc-br">${esc(p.brand)}</div>
+      <div class="pc-nm">${esc(p.name)}</div>
+      <span class="stock${p.stock<20?' low':''}">${p.stock<20 ? 'Utolsó darabok' : 'Raktáron'}</span>
+    </div>
+    <div class="pc-f">
+      <div class="price"><b>${fmt(p.price)}</b>${p.origPrice?`<s>${fmt(p.origPrice)}</s>`:''}</div>
+      <button class="add" aria-label="Kosárba" onclick="addCard(${p.id},this)"><span>Kosárba</span><i class="ai"><b class="ai-plus">${ic('plus',22,2.6)}</b><b class="ai-bag">${ic('bag',20,2.3)}</b></i></button>
+    </div>
+  </article>`;
+}
+function addCard(id, btn) {
+  btn.classList.remove('done'); void btn.offsetWidth; btn.classList.add('done');
+  addToCart(id, 1, btn.closest('.pc').querySelector('.pc-img'));
+}
+
+// ============================================================
+// HOME
+// ============================================================
+// Hero product renders (transparent cut-outs). Positions are % of the art area.
+const HERO_SHOTS = [
+  {src:'assets/hero2-markers.webp', x:-2, y:6, w:48, r:-10, d:7.0, dl:0,  z:1},
+  {src:'assets/hero2-case.webp',    x:20, y:40, w:68, r:-3, d:8.0, dl:.5, z:2},
+  {src:'assets/hero2-notes.webp',   x:66, y:16, w:31, r:7,  d:6.6, dl:.9, z:3},
+];
+const BUBS = [
+  {x:84, y:74, s:60, d:6.4, dl:.6},
+  {x:8,  y:78, s:40, d:5.6, dl:1.2},
+];
+const POPULAR = ['Golyóstoll','Másolópapír','Toner','Gyűrűs mappa','Post-it','Szövegkiemelő'];
+
+function renderHome() {
+  const featured = [13,29,14,6,17,27,10,22].map(id=>DB.find(p=>p.id===id)).filter(Boolean);
+  const sale = DB.filter(p=>p.origPrice).slice(0,4);
+  const counts = Object.fromEntries(CATS.map(c=>[c.key, DB.filter(p=>inCat(p,c.key)).length]));
   app().innerHTML = `
-    <div class="con" style="padding-top:32px;padding-bottom:64px;max-width:700px;margin:0 auto">
-      <h1 style="font-size:26px;font-weight:800;color:var(--navy);margin:0 0 8px">🖨️ Nyomtatókeresés</h1>
-      <p style="color:var(--txt2);font-size:15px;margin:0 0 32px">Keresse meg a nyomtatójához megfelelő kellékanyagot!</p>
-      <div style="background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:28px;margin-bottom:32px">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:end">
-          <div>
-            <label class="form-l">1. Nyomtató márka</label>
-            <select class="form-i" onchange="state.printerBrand=this.value;state.printerModel=null;renderPrinterCompat()">
-              <option value="">Válasszon…</option>
-              ${brands.map(b=>`<option value="${b}" ${state.printerBrand===b?'selected':''}>${b}</option>`).join('')}
-            </select>
+  <section class="hero">
+    <div class="con">
+      <div class="hcard">
+        <div class="h-word" aria-hidden="true">Fodico</div>
+        <div class="hcopy">
+          <h1 class="h1">
+            <span class="ln"><span style="--i:0">Minden, ami</span></span>
+            <span class="ln"><span style="--i:1">az <span class="acc">íróasztalra</span></span></span>
+            <span class="ln"><span style="--i:2">kell.</span></span>
+          </h1>
+          <p class="hsub">Írószer, papíráru, irattartók és nyomtatókellékek — több tízezer termék egy helyen, házhoz szállítva.</p>
+          <div class="hcta">
+            <button class="btn btn-jelly btn-lg" onclick="navigateCat(null)">Összes termék ${ic('arrow',19,2.4)}</button>
+            <button class="btn btn-soft btn-lg" onclick="openSearch()">${ic('search',19,2.4)} Termék keresése</button>
           </div>
-          <div>
-            <label class="form-l">2. Nyomtató modell</label>
-            <select class="form-i" onchange="state.printerModel=this.value;renderPrinterCompat()" ${!state.printerBrand?'disabled':''}>
-              <option value="">Válasszon…</option>
-              ${models.map(m=>`<option value="${m}" ${state.printerModel===m?'selected':''}>${m}</option>`).join('')}
-            </select>
+        </div>
+        <div class="hart" id="hart" aria-hidden="true"><div class="hbox">
+          <div class="disc"></div>
+          ${BUBS.map((b,i)=>`<div class="bwrap" style="left:${b.x}%;top:${b.y}%;width:${(b.s/5.6).toFixed(2)}%;aspect-ratio:1" data-depth="${(b.s/230).toFixed(2)}"><div class="bub-in" style="--i:${i};--d:${b.d}s;--dl:${b.dl}s"><div class="bub" style="position:absolute;inset:0;--rim:${Math.max(2,b.s*.022).toFixed(1)}px"></div></div></div>`).join('')}
+          ${HERO_SHOTS.map((h,i)=>`<div class="bwrap shot" style="left:${h.x}%;top:${h.y}%;width:${h.w}%;z-index:${h.z+2}" data-depth="${(.6+h.z*.25).toFixed(2)}"><div class="shot-in" style="--i:${i};--d:${h.d}s;--dl:${h.dl}s"><img src="${h.src}" alt="" style="--r:${h.r}deg" draggable="false"></div></div>`).join('')}
+        </div></div>
+        <div class="svc">
+        ${[['card','Bankkártyás fizetés','SimplePay — biztonságosan'],['receipt','Számla minden rendelésről','Céges adatokkal is'],['truck','Házhozszállítás','Futárral vagy csomagpontra']]
+          .map(([i,b,s],k)=>`<div class="svc-it" style="--i:${k}"><span class="svc-ic">${ic(i,22,1.9)}</span><div><b>${b}</b><span>${s}</span></div></div>`).join('')}
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="con">
+      <div class="sec-h" data-rv><div><h2>Kategóriák</h2><p>Válassz témát, a többit mi rendezzük.</p></div></div>
+      <div class="cats">
+        ${CATS.map((c,i)=>`<a class="cat${c.sale?' sale':''}" href="#" data-rv style="--i:${i}" onclick="event.preventDefault();navigateCat('${c.key}')"><span class="cat-ic">${ic(c.ic,28,1.8)}</span><div><b>${c.name}</b><br><span>${counts[c.key]} termék</span></div></a>`).join('')}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="con">
+      <div class="sec-h" data-rv><div><h2>Kiemelt termékek</h2><p>Amiből az irodában mindig fogy.</p></div><a class="more" href="#" onclick="event.preventDefault();navigateCat(null)">Összes termék ${ic('arrow',16,2.4)}</a></div>
+      <div class="grid">${featured.map(productCard).join('')}</div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="con">
+      <div class="pband" data-rv>
+        <div>
+          <h2>Melyik patron kell a nyomtatódba?</h2>
+          <p>Válaszd ki a márkát és a típust, és megmutatjuk a hozzá illő tintát vagy tonert.</p>
+        </div>
+        <div class="pform">
+          ${sel('hpb', Object.keys(printerData).map(b=>({v:b,t:b})), state.printerBrand, 'Márka')}
+          ${sel('hpm', state.printerBrand ? Object.keys(printerData[state.printerBrand]).map(m=>({v:m,t:m})) : [], state.printerModel, 'Típus', state.printerBrand?'':'dis')}
+          <button class="btn btn-jelly" onclick="navigate('printer')">Keresés ${ic('arrow',18,2.4)}</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="con">
+      <div class="sec-h" data-rv><div><h2>Most akciós</h2><p>Kedvezményes árak, amíg a készlet tart.</p></div><a class="more" href="#" onclick="event.preventDefault();navigateCat('Akciók')">Összes akció ${ic('arrow',16,2.4)}</a></div>
+      <div class="grid">${sale.map(productCard).join('')}</div>
+    </div>
+  </section>`;
+  SEL.hpb = v => { state.printerBrand=v; state.printerModel=null; render(); };
+  SEL.hpm = v => { state.printerModel=v; navigate('printer'); };
+  heroParallax();
+}
+
+function heroParallax() {
+  const hart = $('#hart'); if (!hart || RM || !matchMedia('(pointer:fine)').matches) return;
+  const card = hart.closest('.hcard');
+  card.addEventListener('pointermove', e => {
+    const r = card.getBoundingClientRect(), nx = (e.clientX - r.left)/r.width - .5, ny = (e.clientY - r.top)/r.height - .5;
+    $$('.bwrap', hart).forEach(b => { const d = +b.dataset.depth; b.style.transform = `translate(${-nx*28*d}px,${-ny*22*d}px)`; });
+  });
+  card.addEventListener('pointerleave', () => $$('.bwrap', hart).forEach(b => b.style.transform = ''));
+}
+
+// ============================================================
+// CATEGORY / SEARCH RESULTS
+// ============================================================
+function renderCategory() {
+  const cat = CATS.find(c=>c.key===state.catFilter);
+  const title = cat ? cat.name : (state.search ? `„${state.search}”` : 'Összes termék');
+  const base = DB.filter(p => (!state.catFilter || inCat(p, state.catFilter)) && (!state.search || hits(state.search).includes(p)));
+  let list = base.filter(p =>
+    (!state.filters.brands.length || state.filters.brands.includes(p.brand)) &&
+    (!state.filters.priceMax || p.price <= state.filters.priceMax) &&
+    (!state.filters.inStock || p.stock >= 20) &&
+    (!state.filters.sub || p.sub === state.filters.sub));
+  if (state.sort==='price-asc') list.sort((a,b)=>a.price-b.price);
+  else if (state.sort==='price-desc') list.sort((a,b)=>b.price-a.price);
+  else if (state.sort==='name') list.sort((a,b)=>a.name.localeCompare(b.name,'hu'));
+  const brands = [...new Set(base.map(p=>p.brand))].sort((a,b)=>a.localeCompare(b,'hu'));
+  const subs = [...new Set(base.map(p=>p.sub))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'hu'));
+  const chips = [
+    ...state.filters.brands.map(b=>({t:b, x:`toggleBrand('${esc(b)}')`})),
+    ...(state.filters.sub?[{t:state.filters.sub, x:`state.filters.sub=null;render()`}]:[]),
+    ...(state.filters.priceMax?[{t:`max. ${fmt(state.filters.priceMax)}`, x:`state.filters.priceMax=null;render()`}]:[]),
+    ...(state.filters.inStock?[{t:'Raktáron', x:`state.filters.inStock=false;render()`}]:[]),
+  ];
+  app().innerHTML = `
+  <div class="con">
+    <nav class="crumbs"><a href="#" onclick="event.preventDefault();navigate('home')">Főoldal</a><span>/</span><span>${esc(title)}</span></nav>
+    <div class="phead">
+      <div><h1>${esc(title)}</h1><div class="cnt">${list.length} termék</div></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-soft fbtn" onclick="openFilters()">${ic('filter',18,2.2)} Szűrők</button>
+        ${sel('sort', [{v:'pop',t:'Ajánlott sorrend'},{v:'price-asc',t:'Ár szerint növekvő'},{v:'price-desc',t:'Ár szerint csökkenő'},{v:'name',t:'Név szerint (A–Z)'}], state.sort, 'Rendezés', 'sm')}
+      </div>
+    </div>
+    <div class="clay">
+      <aside class="fpan" id="fpan">
+        <div class="fpan-h"><b>Szűrők</b><button class="btn-ghost btn" style="font-size:13px" onclick="clearFilters()">Törlés</button></div>
+        <div class="fg">${chk('checkbox','stock',state.filters.inStock,'Csak bőven raktáron','state.filters.inStock=this.checked;render()')}</div>
+        ${subs.length>1 ? `<div class="fg"><div class="fg-t">Típus</div>
+          ${chk('radio','sub',!state.filters.sub,'Mind','state.filters.sub=null;render()', base.length)}
+          ${subs.map(s=>chk('radio','sub',state.filters.sub===s,esc(s),`state.filters.sub='${esc(s)}';render()`, base.filter(p=>p.sub===s).length)).join('')}</div>` : ''}
+        <div class="fg"><div class="fg-t">Márka</div>
+          ${brands.map(b=>chk('checkbox','brand',state.filters.brands.includes(b),esc(b),`toggleBrand('${esc(b)}')`, base.filter(p=>p.brand===b).length)).join('')}</div>
+        <div class="fg"><div class="fg-t">Ár</div>
+          ${chk('radio','price',!state.filters.priceMax,'Bármennyi','state.filters.priceMax=null;render()')}
+          ${[2000,5000,10000,30000].map(v=>chk('radio','price',state.filters.priceMax===v,`max. ${fmt(v)}`,`state.filters.priceMax=${v};render()`)).join('')}</div>
+      </aside>
+      <div>
+        ${chips.length ? `<div class="chips">${chips.map(c=>`<button class="chip" onclick="${c.x}">${esc(c.t)}<i>×</i></button>`).join('')}</div>` : ''}
+        ${list.length ? `<div class="grid auto">${list.map(productCard).join('')}</div>`
+          : `<div class="empty"><div class="fly-in" style="margin:0 auto">${ic('search',28,2)}</div><h3>Nincs ilyen termék</h3><p>Lazíts a szűrőkön, vagy keress másra.</p><button class="btn btn-soft" onclick="clearFilters()">Szűrők törlése</button></div>`}
+      </div>
+    </div>
+  </div>`;
+  SEL.sort = v => { state.sort=v; render(); };
+}
+function toggleBrand(b) { const i=state.filters.brands.indexOf(b); i>=0?state.filters.brands.splice(i,1):state.filters.brands.push(b); render(); }
+function clearFilters() { state.filters={brands:[],priceMax:null,inStock:false,sub:null}; render(); }
+
+// ============================================================
+// PRODUCT PAGE
+// ============================================================
+let pageQty = 1;
+function renderProduct() {
+  const p = state.product; if (!p) return navigate('home');
+  const wish = state.wishlist.includes(p.id), c = catOf(p);
+  const disc = p.origPrice ? Math.round((1-p.price/p.origPrice)*100) : 0;
+  const related = DB.filter(x=>x.cat===p.cat && x.id!==p.id).slice(0,4);
+  const tabs = [['Leírás','desc'],['Műszaki adatok','spec'], ...(p.compat?[['Kompatibilitás','compat']]:[])];
+  app().innerHTML = `
+  <div class="con">
+    <nav class="crumbs"><a href="#" onclick="event.preventDefault();navigate('home')">Főoldal</a><span>/</span><a href="#" onclick="event.preventDefault();navigateCat('${p.cat}')">${esc(c.name)}</a><span>/</span><span>${esc(p.sub||'')}</span></nav>
+    <div class="pp">
+      <div><div class="th gal-main">${ic(c.ic,24,1.3)}<small>A termékfotó a feedből érkezik</small></div></div>
+      <div>
+        <div class="pi-br">${esc(p.brand)}</div>
+        <h1 class="pi-h">${esc(p.name)}</h1>
+        <div class="pi-sku">Cikkszám: ${esc(p.sku)}</div>
+        <div class="pi-box">
+          <div class="pi-pr"><b>${fmt(p.price)}</b>${p.origPrice?`<s>${fmt(p.origPrice)}</s><span class="pc-bdg">−${disc}%</span>`:''}</div>
+          <div class="pi-vat">Bruttó ár, az áfát tartalmazza</div>
+          <span class="stock${p.stock<20?' low':''}">${p.stock<20 ? `Utolsó darabok — ${p.stock} db` : 'Raktáron'}</span>
+          <div class="pi-row">
+            <div class="qty"><button onclick="chQty(-1)" aria-label="Kevesebb">−</button><output id="pqty">1</output><button onclick="chQty(1)" aria-label="Több">+</button></div>
+            <button class="btn btn-jelly" onclick="addToCart(${p.id}, pageQty, this)">${ic('bag',20,2.2)} Kosárba</button>
+            <button class="wish${wish?' on':''}" data-id="${p.id}" aria-pressed="${wish}" aria-label="Kívánságlista" onclick="toggleWish(${p.id},this)">${ic('heart',20,2)}</button>
           </div>
-          <div>
-            <button class="btn btn-o" onclick="state.printerBrand=null;state.printerModel=null;renderPrinterCompat()">Törlés</button>
+          <div class="perks">
+            ${[['card','Bankkártya','SimplePay'],['bag','Utánvét','fizetés átvételkor'],['truck','Házhozszállítás','futár vagy csomagpont'],['receipt','Számla','minden rendelésről']]
+              .map(([i,b,s])=>`<div class="perk"><span class="svc-ic">${ic(i,18,2)}</span><div><b>${b}</b><span>${s}</span></div></div>`).join('')}
           </div>
         </div>
       </div>
-      ${results.length > 0 ? `
-        <h2 style="font-size:18px;font-weight:700;color:var(--navy);margin:0 0 16px">Kompatibilis kellékanyagok (${results.length})</h2>
-        <div class="pg3">
-          ${DB.filter(p => results.includes(p.name)).map(p => productCard(p)).join('')}
-        </div>` :
-        state.printerModel ? `<div style="text-align:center;padding:40px;color:var(--txt2)"><p>Nem találtunk kompatibilis terméket ebből a modellből.</p></div>` :
-        `<div style="text-align:center;padding:40px;color:var(--txt2)">
-          <div style="font-size:48px;margin-bottom:12px">🖨️</div>
-          <p style="font-size:15px">Válassza ki a nyomtató márkáját és modelljét a kompatibilis kellékanyagok megjelenítéséhez.</p>
-        </div>`}
-    </div>`;
+    </div>
+    <div class="tabs" role="tablist">${tabs.map(([t,k],i)=>`<button role="tab" class="${i?'':'on'}" data-k="${k}" onclick="ptab(this)">${t}</button>`).join('')}<span class="tab-ind"></span></div>
+    <div class="tabp" id="tabp">${tabBody(p,'desc')}</div>
+    ${related.length ? `<div class="sec"><div class="sec-h" data-rv><div><h2>Ehhez is jól jöhet</h2></div></div><div class="grid">${related.map(productCard).join('')}</div></div>` : ''}
+  </div>`;
+  pageQty = 1;
+  requestAnimationFrame(() => ptab($('.tabs button.on'), true));
+}
+function chQty(d) { pageQty = Math.max(1, pageQty + d); $('#pqty').textContent = pageQty; }
+function tabBody(p, k) {
+  if (k==='spec') return p.specs ? `<table class="spec">${Object.entries(p.specs).map(([a,b])=>`<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>` : '<p>Nincs megadott műszaki adat.</p>';
+  if (k==='compat') return `<p>A termék az alábbi nyomtatókhoz illik:</p><div class="compat">${p.compat.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>`;
+  return `<p>${esc(p.desc)}</p>`;
+}
+function ptab(btn, init) {
+  if (!btn) return;
+  const tabs = btn.parentElement, ind = $('.tab-ind', tabs);
+  $$('button', tabs).forEach(b=>b.classList.toggle('on', b===btn));
+  ind.style.width = btn.offsetWidth + 'px'; ind.style.transform = `translateX(${btn.offsetLeft}px)`;
+  if (!init) { const tp=$('#tabp'); tp.innerHTML = tabBody(state.product, btn.dataset.k); tp.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:350,easing:'cubic-bezier(.22,1,.36,1)'}); }
 }
 
 // ============================================================
-// MAIN RENDER
+// WISHLIST
 // ============================================================
-function render() {
-  pageQty = 1;
-  switch(state.view) {
-    case 'home': renderHome(); break;
+function renderWishlist() {
+  const items = DB.filter(p=>state.wishlist.includes(p.id));
+  app().innerHTML = `<div class="con">
+    <nav class="crumbs"><a href="#" onclick="event.preventDefault();navigate('home')">Főoldal</a><span>/</span><span>Kívánságlista</span></nav>
+    <div class="phead"><div><h1>Kívánságlista</h1><div class="cnt">${items.length} termék</div></div></div>
+    ${items.length ? `<div class="grid">${items.map(productCard).join('')}</div>`
+      : `<div class="empty"><div class="fly-in" style="margin:0 auto">${ic('heart',28,2)}</div><h3>Még üres</h3><p>A termékeken a szívre kattintva ide gyűjtheted őket.</p><button class="btn btn-jelly" onclick="navigate('home')">Böngészés</button></div>`}
+  </div>`;
+}
+
+// ============================================================
+// CHECKOUT
+// ============================================================
+function renderCheckout() {
+  if (!state.cart.length) { navigate('home'); toast('A kosár üres.'); return; }
+  const items = cartItems(), total = cartTotal(), step = state.checkoutStep, od = state.orderData || {};
+  const ship = SHIP_OPTS.find(s=>s.id===od.delivery);
+  const shipCost = total >= FREE_SHIP ? 0 : (ship ? ship.price : null);
+  const steps = ['Adatok','Szállítás','Fizetés'];
+  app().innerHTML = `<div class="con">
+    <nav class="crumbs"><a href="#" onclick="event.preventDefault();navigate('home')">Főoldal</a><span>/</span><span>Pénztár</span></nav>
+    <div class="phead"><div><h1>Pénztár</h1></div></div>
+    <div class="steps">${steps.map((s,i)=>`<div class="st${i+1===step?' on':''}${i+1<step?' done':''}"><i>${i+1<step?ic('check',16,3):i+1}</i>${s}</div>${i<2?'<span class="st-sep"></span>':''}`).join('')}</div>
+    <div class="co">
+      <div class="card">${step===1?coStep1(od):step===2?coStep2(od):coStep3(od)}</div>
+      <div class="card">
+        <h2 style="font-size:22px">Összegzés</h2>
+        ${items.map(i=>`<div class="sum-it"><span>${esc(i.name)} × ${i.qty}</span><b>${fmt(i.price*i.qty)}</b></div>`).join('')}
+        <div class="sum-hr"></div>
+        <div class="row"><span>Részösszeg</span><span>${fmt(total)}</span></div>
+        <div class="row"><span>Szállítás</span><span>${shipCost===null?'választás után':shipCost===0?'ingyenes':fmt(shipCost)}</span></div>
+        <div class="row tot"><span>Összesen</span><span>${fmt(total + (shipCost||0))}</span></div>
+        <div class="pi-vat" style="margin:0">Az árak az áfát tartalmazzák.</div>
+      </div>
+    </div>
+  </div>`;
+}
+const fld = (id,label,ph,val,type='text') => `<div class="fld"><label for="${id}">${label}</label><input id="${id}" type="${type}" placeholder="${ph}" value="${esc(val||'')}"></div>`;
+function coStep1(o) {
+  return `<h2>Elérhetőség</h2>
+    <div class="fgrid">${fld('c-ln','Vezetéknév','Kovács',o.lname)}${fld('c-fn','Keresztnév','Anna',o.fname)}</div>
+    ${fld('c-em','E-mail','anna@pelda.hu',o.email,'email')}${fld('c-ph','Telefon','+36 30 123 4567',o.phone,'tel')}
+    <div class="note">Céges vásárlás? Add meg a számlázási adatokat, és ezekre állítjuk ki a számlát.</div>
+    <div class="fgrid">${fld('c-co','Cégnév (nem kötelező)','Minta Kft.',o.company)}${fld('c-vat','Adószám (nem kötelező)','12345678-1-12',o.vat)}</div>
+    <div class="btn-row"><button class="btn btn-jelly" onclick="coNext1()">Tovább a szállításhoz ${ic('arrow',18,2.4)}</button></div>`;
+}
+function coStep2(o) {
+  return `<h2>Szállítás</h2>
+    ${fld('c-ad','Utca, házszám','Fő utca 1.',o.addr)}
+    <div class="fgrid">${fld('c-zip','Irányítószám','1011',o.zip)}${fld('c-ci','Település','Budapest',o.city)}</div>
+    <h3>Szállítási mód</h3>
+    ${SHIP_OPTS.map(s=>`<label class="opt"><input type="radio" name="dl" value="${s.id}" ${o.delivery===s.id?'checked':''} onchange="state.orderData={...(state.orderData||{}),delivery:'${s.id}'};renderCheckout()"><span class="bx"></span><span class="oi"><b>${s.name}</b><span>${s.sub}</span></span><em>${cartTotal()>=FREE_SHIP?'ingyenes':fmt(s.price)}</em></label>`).join('')}
+    <div class="btn-row"><button class="btn btn-soft" onclick="saveStep2();state.checkoutStep=1;renderCheckout()">Vissza</button><button class="btn btn-jelly" onclick="coNext2()">Tovább a fizetéshez ${ic('arrow',18,2.4)}</button></div>`;
+}
+function coStep3(o) {
+  return `<h2>Fizetés</h2>
+    ${PAY_OPTS.map(s=>`<label class="opt"><input type="radio" name="pm" value="${s.id}" ${o.payment===s.id?'checked':''} onchange="state.orderData={...(state.orderData||{}),payment:'${s.id}'}"><span class="bx"></span><span class="oi"><b>${s.name}</b><span>${s.sub}</span></span>${s.id==='card'?ic('card',22,1.9):''}</label>`).join('')}
+    <div style="margin:16px 0 4px">${chk('checkbox','tos',!!o.tos,'Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.','state.orderData={...(state.orderData||{}),tos:this.checked}')}</div>
+    <div class="btn-row"><button class="btn btn-soft" onclick="state.checkoutStep=2;renderCheckout()">Vissza</button><button class="btn btn-jelly" onclick="placeOrder()">Megrendelés elküldése</button></div>
+    <p class="pi-vat" style="margin-top:14px">Demó: a bankkártyás fizetés élesben a SimplePay oldalán történik.</p>`;
+}
+const v = id => ($('#'+id)?.value || '').trim();
+function coNext1() {
+  if (!v('c-ln') || !v('c-fn')) return toast('Add meg a neved.', {err:1});
+  if (!/^\S+@\S+\.\S+$/.test(v('c-em'))) return toast('Ellenőrizd az e-mail címet.', {err:1});
+  if (!v('c-ph')) return toast('Add meg a telefonszámod.', {err:1});
+  state.orderData = {...(state.orderData||{}), lname:v('c-ln'), fname:v('c-fn'), email:v('c-em'), phone:v('c-ph'), company:v('c-co'), vat:v('c-vat')};
+  state.checkoutStep = 2; renderCheckout(); scrollTo(0,0);
+}
+function saveStep2() { state.orderData = {...(state.orderData||{}), addr:v('c-ad'), zip:v('c-zip'), city:v('c-ci')}; }
+function coNext2() {
+  saveStep2(); const o = state.orderData;
+  if (!o.addr || !o.zip || !o.city) return toast('Töltsd ki a szállítási címet.', {err:1});
+  if (!o.delivery) return toast('Válassz szállítási módot.', {err:1});
+  state.checkoutStep = 3; renderCheckout(); scrollTo(0,0);
+}
+function placeOrder() {
+  const o = state.orderData || {};
+  if (!o.payment) return toast('Válassz fizetési módot.', {err:1});
+  if (!o.tos) return toast('Fogadd el az ÁSZF-et.', {err:1});
+  o.orderId = uid(); o.items = cartItems(); o.total = cartTotal();
+  state.cart = []; updateBadges(); renderCart();
+  navigate('confirmation');
+}
+function renderConfirmation() {
+  const o = state.orderData; if (!o || !o.orderId) return navigate('home');
+  app().innerHTML = `<div class="con" style="max-width:720px;padding-top:40px">
+    <div class="card" style="text-align:center">
+      <div class="done-ic"><div class="fly-in"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg></div></div>
+      <h2 style="font-size:clamp(28px,4vw,40px);margin-bottom:8px">Köszönjük a rendelést!</h2>
+      <p style="color:var(--ink2);font-weight:600;margin:0">A visszaigazolást elküldtük ide: <b style="color:var(--ink)">${esc(o.email)}</b></p>
+      <div class="oid">Rendelésszám: <b>${o.orderId}</b></div>
+      <div style="text-align:left">
+        ${o.items.map(i=>`<div class="sum-it"><span>${esc(i.name)} × ${i.qty}</span><b>${fmt(i.price*i.qty)}</b></div>`).join('')}
+        <div class="sum-hr"></div>
+        <div class="row tot" style="margin-bottom:0"><span>Összesen</span><span>${fmt(o.total)}</span></div>
+      </div>
+      <div class="btn-row" style="justify-content:center"><button class="btn btn-jelly" style="flex:none" onclick="navigate('home')">Vissza a boltba</button></div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// PRINTER CARTRIDGE FINDER
+// ============================================================
+function renderPrinter() {
+  const brands = Object.keys(printerData);
+  const models = state.printerBrand ? Object.keys(printerData[state.printerBrand]) : [];
+  const res = state.printerBrand && state.printerModel ? (printerData[state.printerBrand][state.printerModel]||[]) : [];
+  const prods = DB.filter(p=>res.includes(p.name));
+  app().innerHTML = `<div class="con">
+    <nav class="crumbs"><a href="#" onclick="event.preventDefault();navigate('home')">Főoldal</a><span>/</span><span>Patronkereső</span></nav>
+    <div class="pband" style="margin-bottom:28px">
+      <div><h2>Patronkereső</h2><p>Válaszd ki a nyomtatód márkáját és típusát.</p></div>
+      <div class="pform">
+        ${sel('pb', brands.map(b=>({v:b,t:b})), state.printerBrand, 'Márka')}
+        ${sel('pm', models.map(m=>({v:m,t:m})), state.printerModel, 'Típus', state.printerBrand?'':'dis')}
+      </div>
+    </div>
+    ${prods.length ? `<div class="sec-h"><div><h2 style="font-size:28px">Ezek illenek hozzá</h2><p>${esc(state.printerModel)}</p></div></div><div class="grid">${prods.map(productCard).join('')}</div>`
+      : `<div class="empty"><div class="fly-in" style="margin:0 auto">${ic('printer',28,2)}</div><h3>${state.printerModel?'Nincs találat':'Válassz nyomtatót'}</h3><p>${state.printerModel?'Ehhez a típushoz most nincs kellék a kínálatban.':'A márka és a típus kiválasztása után itt jelennek meg a kompatibilis kellékek.'}</p></div>`}
+  </div>`;
+  SEL.pb = v => { state.printerBrand=v; state.printerModel=null; render(); };
+  SEL.pm = v => { state.printerModel=v; render(); };
+}
+
+// ============================================================
+// RENDER + REVEALS
+// ============================================================
+let rvObs;
+function reveals() {
+  if (rvObs) rvObs.disconnect();
+  const els = $$('#app [data-rv]');
+  if (RM || !('IntersectionObserver' in window)) { els.forEach(e=>e.classList.add('in')); return; }
+  rvObs = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); rvObs.unobserve(en.target); } }), {rootMargin:'0px 0px -8% 0px'});
+  els.forEach(e => rvObs.observe(e));
+}
+function render(swap) {
+  document.body.className = 'v-' + state.view;
+  switch (state.view) {
     case 'category': renderCategory(); break;
     case 'product': renderProduct(); break;
+    case 'wishlist': renderWishlist(); break;
     case 'checkout': renderCheckout(); break;
     case 'confirmation': renderConfirmation(); break;
-    case 'wishlist': renderWishlist(); break;
-    case 'printer-compat': renderPrinterCompat(); break;
+    case 'printer': renderPrinter(); break;
     default: renderHome();
   }
-  // Sticky header update
-  const hdr = document.getElementById('hdr');
-  if(hdr) hdr.classList.toggle('scrolled', window.scrollY > 10);
+  renderNav(); reveals();
+  if (swap && !RM) { const a = app(); a.classList.remove('swap'); void a.offsetWidth; a.classList.add('swap'); }
 }
+window.addEventListener('scroll', () => $('#hdr').classList.toggle('scrolled', scrollY > 8), {passive:true});
 
 // ============================================================
-// INIT
+// INTRO: loader → hero entrance
 // ============================================================
-window.addEventListener('scroll', () => {
-  const hdr = document.getElementById('hdr');
-  if(hdr) hdr.classList.toggle('scrolled', window.scrollY > 10);
-}, { passive: true });
+function startEntrance() {
+  const d = document.documentElement;
+  d.classList.remove('pre'); d.classList.add('go');
+  setTimeout(() => d.classList.add('settled'), 2300);
+}
+function runLoader() {
+  const d = document.documentElement;
+  if (d.classList.contains('ld-done')) { (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(startEntrance)); return; }
+  const imgs = $$('#loader img');
+  const ready = Promise.all([
+    document.fonts ? document.fonts.ready : Promise.resolve(),
+    ...imgs.map(i => i.decode ? i.decode().catch(()=>{}) : Promise.resolve()),
+  ]);
+  const timeout = new Promise(r => setTimeout(r, 1400));
+  Promise.race([ready, timeout]).then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+    d.classList.add('ld-run');
+    setTimeout(() => { d.classList.add('ld-out'); setTimeout(startEntrance, 220); }, 2480);
+    setTimeout(() => { d.classList.add('ld-done'); const l=$('#loader'); l && l.remove(); }, 3700);
+  })));
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   render();
-  initSearch();
-  updateBadges();
-  renderCart();
+  bindSearch($('#q-h'), $('#r-h'));
+  $('#sp-tags').innerHTML = POPULAR.map(t=>`<a class="tag" href="#" onclick="event.preventDefault();doSearch('${t}')">${t}</a>`).join('');
+  bindSearch($('#q-m'), null);
+  updateBadges(); renderCart();
+  runLoader();
 });
-
-// Initial render (in case DOMContentLoaded already fired)
-if(document.readyState !== 'loading') {
-  render();
-  initSearch();
-  updateBadges();
-}
