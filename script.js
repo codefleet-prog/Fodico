@@ -447,16 +447,47 @@ function addCard(id, btn) {
 // ============================================================
 // HOME
 // ============================================================
-// Hero product renders (transparent cut-outs). Positions are % of the art area.
-const HERO_SHOTS = [
-  {src:'assets/hero2-markers.webp', x:-2, y:6, w:48, r:-10, d:7.0, dl:0,  z:1},
-  {src:'assets/hero2-case.webp',    x:20, y:40, w:68, r:-3, d:8.0, dl:.5, z:2},
-  {src:'assets/hero2-notes.webp',   x:66, y:16, w:31, r:7,  d:6.6, dl:.9, z:3},
-];
+// Hero trust cards — REAL data read off Google Maps ("Fodico Bt. Papírbolt", 2026-10-06).
+// Re-check the score, the count and the quote on the listing before launch.
+const GREVIEW = {
+  score: 4.8, count: 105,
+  url: 'https://www.google.com/maps/place/Fodico+Bt.+Pap%C3%ADrbolt/@47.516417,19.1291754,17z/data=!3m1!4b1!4m6!3m5!1s0x4741db4352589e29:0x457b812bd68f8e70!8m2!3d47.516417!4d19.1291754!16s%2Fg%2F1thr5z1d',
+  reviewers: ['LM','KM','PG'],                 // initials of real reviewers on the listing
+  quote: { name:'Péter Gergen', initials:'PG',
+           text:'A fantasztikusan széles választékot csak a segítőkészség és a professzionalizmus múlja fölül!' },
+};
 const BUBS = [
-  {x:84, y:74, s:60, d:6.4, dl:.6},
-  {x:8,  y:78, s:40, d:5.6, dl:1.2},
+  {x:46, y:0,  w:46, d:8.4, dl:.4},
+  {x:2,  y:70, w:17, d:6.0, dl:1.1},
 ];
+const GLOGO = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+const STAR = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.6 7.7l5.8-.8z"/></svg>';
+const stars = (v) => `<span class="stars" role="img" aria-label="${String(v).replace('.',',')} / 5 csillag"><span class="st-bg">${STAR.repeat(5)}</span><span class="st-fg" style="width:${v/5*100}%">${STAR.repeat(5)}</span></span>`;
+function heroReviews() {
+  const G = GREVIEW;
+  return `
+    <div class="disc" aria-hidden="true"></div>
+    ${BUBS.map((b,i)=>`<div class="bwrap bb${i}" aria-hidden="true" style="left:${b.x}%;top:${b.y}%;width:${b.w}%;aspect-ratio:1" data-depth="${(.4+b.w/80).toFixed(2)}"><div class="bub-in" style="--i:${i};--d:${b.d}s;--dl:${b.dl}s"><div class="bub" style="position:absolute;inset:0;--rim:${Math.max(2.5,b.w*.09).toFixed(1)}px"></div></div></div>`).join('')}
+    <div class="bwrap rvw" style="left:0;top:7%;z-index:5" data-depth="1.25"><div class="shot-in" style="--i:0;--d:6.6s;--dl:.8s">
+      <div class="gpill">
+        <span class="gav">${G.reviewers.map(r=>`<i>${r}</i>`).join('')}</span>
+        <span class="gpill-t">${stars(5)}<b>${G.count} értékelés a Google-on</b></span>
+      </div>
+    </div></div>
+    <div class="bwrap rvw" style="left:12%;top:23%;width:62%;z-index:4" data-depth="1"><div class="shot-in" style="--i:1;--d:7.6s;--dl:0s">
+      <a class="gcard" href="${G.url}" target="_blank" rel="noopener" aria-label="Fodico értékelései a Google Térképen">
+        <span class="gc-top"><span class="glogo">${GLOGO}</span><span class="gc-lb">Google értékelés</span></span>
+        <span class="gc-score"><b id="gscore">${String(G.score).replace('.',',')}</b><span class="gc-meta">${stars(G.score)}<span>${G.count} vélemény alapján</span></span></span>
+        <span class="gc-link">Megnézem a Google-on ${ic('arrow',16,2.4)}</span>
+      </a>
+    </div></div>
+    <div class="bwrap rvw" style="left:34%;top:63%;width:64%;z-index:6" data-depth="1.45"><div class="shot-in" style="--i:2;--d:7s;--dl:.5s">
+      <figure class="gquote">
+        <figcaption><i>${G.quote.initials}</i><span><b>${G.quote.name}</b>${stars(5)}</span><span class="glogo sm">${GLOGO}</span></figcaption>
+        <blockquote>„${G.quote.text}”</blockquote>
+      </figure>
+    </div></div>`;
+}
 const POPULAR = ['Golyóstoll','Másolópapír','Toner','Gyűrűs mappa','Post-it','Szövegkiemelő'];
 
 function renderHome() {
@@ -480,10 +511,7 @@ function renderHome() {
             <button class="btn btn-soft btn-lg" onclick="openSearch()">${ic('search',19,2.4)} Termék keresése</button>
           </div>
         </div>
-        <div class="hart" id="hart" aria-hidden="true"><div class="hbox">
-          <div class="disc"></div>
-          ${BUBS.map((b,i)=>`<div class="bwrap" style="left:${b.x}%;top:${b.y}%;width:${(b.s/5.6).toFixed(2)}%;aspect-ratio:1" data-depth="${(b.s/230).toFixed(2)}"><div class="bub-in" style="--i:${i};--d:${b.d}s;--dl:${b.dl}s"><div class="bub" style="position:absolute;inset:0;--rim:${Math.max(2,b.s*.022).toFixed(1)}px"></div></div></div>`).join('')}
-          ${HERO_SHOTS.map((h,i)=>`<div class="bwrap shot" style="left:${h.x}%;top:${h.y}%;width:${h.w}%;z-index:${h.z+2}" data-depth="${(.6+h.z*.25).toFixed(2)}"><div class="shot-in" style="--i:${i};--d:${h.d}s;--dl:${h.dl}s"><img src="${h.src}" alt="" style="--r:${h.r}deg" draggable="false"></div></div>`).join('')}
+        <div class="hart" id="hart"><div class="hbox">${heroReviews()}
         </div></div>
         <div class="svc">
         ${[['card','Bankkártyás fizetés','SimplePay — biztonságosan'],['receipt','Számla minden rendelésről','Céges adatokkal is'],['truck','Házhozszállítás','Futárral vagy csomagpontra']]
@@ -819,9 +847,16 @@ window.addEventListener('scroll', () => $('#hdr').classList.toggle('scrolled', s
 // ============================================================
 // INTRO: loader → hero entrance
 // ============================================================
+function countScore() {
+  const el = $('#gscore'); if (!el || RM) return;
+  const to = GREVIEW.score, t0 = performance.now() + 750, dur = 1100;
+  el.textContent = '0,0';
+  (function f(now){ const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = (to * e).toFixed(1).replace('.', ','); if (k < 1) requestAnimationFrame(f); })(performance.now());
+}
 function startEntrance() {
   const d = document.documentElement;
-  d.classList.remove('pre'); d.classList.add('go');
+  d.classList.remove('pre'); d.classList.add('go'); countScore();
   setTimeout(() => d.classList.add('settled'), 2300);
 }
 function runLoader() {
